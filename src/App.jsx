@@ -1,9 +1,7 @@
-import { Canvas } from "@react-three/fiber";
 import { Leva } from "leva";
 import { EcctrlJoystick } from "@/modules/third_person_controller/EcctrlJoystick";
-import { Suspense, useEffect, useState } from "react";
-import { Bvh } from "@react-three/drei";
-import ThirdPersonScene1 from "./modules/third_person_scene_1/ThirdPersonScene1";
+import { useEffect, useState } from "react";
+import ThreeCanvas from "./modules/ThreeCanvas";
 
 const EcctrlJoystickControls = () => {
   const [isTouchScreen, setIsTouchScreen] = useState(false);
@@ -23,25 +21,7 @@ function App() {
     <>
       <Leva collapsed />
       <EcctrlJoystickControls />
-      <Canvas
-        shadows
-        camera={{
-          fov: 65,
-          near: 0.1,
-          far: 1000,
-        }}
-        onPointerDown={(e) => {
-          if (e.pointerType === "mouse") {
-            e.target.requestPointerLock();
-          }
-        }}
-      >
-        <Suspense fallback={null}>
-          <Bvh firstHitOnly>
-            <ThirdPersonScene1 />
-          </Bvh>
-        </Suspense>
-      </Canvas>
+      <ThreeCanvas />
     </>
   );
 }
