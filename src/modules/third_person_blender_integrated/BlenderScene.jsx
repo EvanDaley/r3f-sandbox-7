@@ -9,235 +9,160 @@ import { useAnimateVerticalPlatform } from "./hooks/useAnimateVerticalPlatform";
 /**
  * BlenderScene Component
  * 
- * Loads a GLB scene from Blender and categorizes objects into three groups:
- * 1. simple_colliders - Default static objects with hull colliders (fixed)
- * 2. platforms - Moving platforms with hull colliders (kinematic)
- * 3. trimesh - Complex objects with trimesh colliders (reserved for future use)
- * 
- * Objects are categorized by name patterns:
- * - Objects starting with "platform_" go to platforms group
- * - Other objects go to simple_colliders by default
- * - trimesh group is reserved for future complex objects
+ * Loads a GLB scene and categorizes objects by name:
+ * - "platform" -> moving horizontal platforms (hull colliders, kinematic)
+ * - "zplatform" -> moving vertical platforms (hull colliders, kinematic)
+ * - "static" -> trimesh colliders (fixed)
+ * - everything else -> hull colliders (fixed)
  */
 export default function BlenderScene({ 
   scenePath = "./models/third_person_blender_integrated/scene.glb"
 }) {
   const { scene } = useGLTF(scenePath);
 
-  // Categorize objects into three groups
-  const { simpleCollidersGroup, platforms, verticalPlatforms, trimeshGroup } = useMemo(() => {
+  // Categorize objects into groups
+  const { staticGroup, platforms, verticalPlatforms, trimeshGroup } = useMemo(() => {
     if (!scene) {
-      return { simpleCollidersGroup: null, platforms: [], verticalPlatforms: [], trimeshGroup: null };
+      return { staticGroup: null, platforms: [], verticalPlatforms: [], trimeshGroup: null };
     }
 
-    // Clone the scene for categorization
+    // Clone the entire scene once
     const clonedScene = scene.clone();
+    const trimeshGroup = new THREE.Group();
     const platforms = [];
     const verticalPlatforms = [];
     
-    // Reserved for future use - complex objects that need trimesh colliders
-    // const trimeshGroup = new THREE.Group();
-    // trimeshGroup.name = "trimesh";
-    const trimeshGroup = null;
-
-    // Find and extract platform objects
-    // Match names that contain "platform" (case-insensitive) - handles names like "platform_move_2.001"
-    // Separate horizontal (platform) and vertical (zplatform) platforms
     const platformPattern = /platform/i;
     const zplatformPattern = /zplatform/i;
-    const platformObjects = [];
-    const zplatformObjects = [];
+    const objectsToRemove = [];
     
+    // Find platforms and static objects
     clonedScene.traverse((child) => {
-      if (child.name) {
-        // Check for vertical platforms first (zplatform)
-        if (zplatformPattern.test(child.name)) {
-          zplatformObjects.push(child);
-        }
-        // Then check for horizontal platforms (platform, but not zplatform)
-        else if (platformPattern.test(child.name)) {
-          platformObjects.push(child);
-        }
+      if (!child.name) return;
+      
+      if (zplatformPattern.test(child.name)) {
+        const cloned = child.clone();
+        verticalPlatforms.push({
+          object: cloned,
+          startPos: child.position.clone(),
+          id: child.name,
+        });
+        objectsToRemove.push(child);
+      } else if (platformPattern.test(child.name)) {
+        const cloned = child.clone();
+        platforms.push({
+          object: cloned,
+          startPos: child.position.clone(),
+          id: child.name,
+        });
+        objectsToRemove.push(child);
+      } else if (child.name === "static") {
+        const cloned = child.clone();
+        trimeshGroup.add(cloned);
+        objectsToRemove.push(child);
       }
     });
     
-    // Assign phases evenly and create horizontal platform data
-    platformObjects.forEach((child, index) => {
-      // Distribute phases evenly across platforms (0-1, where 0 = start, 1 = end of cycle)
-      const phase = platformObjects.length > 1 
-        ? index / (platformObjects.length - 1) 
-        : 0; // Evenly distribute from 0 to 1
-      
-      platforms.push({
-        object: child.clone(),
-        startPos: child.position.clone(),
-        id: child.name || `platform-${index}`, // Unique identifier
-        phase: phase, // Phase offset (0-1) to start at different positions in cycle
-      });
-      
-      // Remove from cloned scene
-      if (child.parent) {
-        child.parent.remove(child);
-      }
+    // Assign phases evenly to platforms
+    platforms.forEach((platform, index) => {
+      platform.phase = platforms.length > 1 ? index / (platforms.length - 1) : 0;
     });
     
-    // Assign phases evenly and create vertical platform data
-    zplatformObjects.forEach((child, index) => {
-      // Distribute phases evenly across platforms (0-1, where 0 = start, 1 = end of cycle)
-      const phase = zplatformObjects.length > 1 
-        ? index / (zplatformObjects.length - 1) 
-        : 0; // Evenly distribute from 0 to 1
-      
-      verticalPlatforms.push({
-        object: child.clone(),
-        startPos: child.position.clone(),
-        id: child.name || `zplatform-${index}`, // Unique identifier
-        phase: phase, // Phase offset (0-1) to start at different positions in cycle
-      });
-      
-      // Remove from cloned scene
-      if (child.parent) {
-        child.parent.remove(child);
-      }
+    verticalPlatforms.forEach((platform, index) => {
+      platform.phase = verticalPlatforms.length > 1 ? index / (verticalPlatforms.length - 1) : 0;
     });
     
-    // Future: Add trimesh categorization logic here
-    // clonedScene.traverse((child) => {
-    //   if (child.name.startsWith("trimesh_")) {
-    //     const cloned = child.clone();
-    //     trimeshGroup.add(cloned);
-    //     if (child.parent) {
-    //       child.parent.remove(child);
-    //     }
-    //   }
-    // });
+    // Remove platforms and static from cloned scene
+    objectsToRemove.forEach(obj => {
+      if (obj.parent) {
+        obj.parent.remove(obj);
+      }
+    });
 
     return {
-      simpleCollidersGroup: clonedScene, // Remaining objects go to simple colliders
-      platforms: platforms,
-      verticalPlatforms: verticalPlatforms,
-      trimeshGroup: trimeshGroup,
+      staticGroup: clonedScene,
+      platforms,
+      verticalPlatforms,
+      trimeshGroup: trimeshGroup.children.length > 0 ? trimeshGroup : null,
     };
   }, [scene]);
-
-  // Set up shadow receiving for all groups
-  useSceneShadows(scene);
 
   // Store RigidBody refs for platforms
   const platformRefsRef = useRef(new Map());
   const verticalPlatformRefsRef = useRef(new Map());
 
-  // Animate horizontal platforms
-  useAnimatePlatform(platforms, platformRefsRef, {
-    moveDistance: 5,
-    moveSpeed: 2,
-  });
+  // Animate platforms
+  useAnimatePlatform(platforms, platformRefsRef, { moveDistance: 5, moveSpeed: 2 });
+  useAnimateVerticalPlatform(verticalPlatforms, verticalPlatformRefsRef, { moveDistance: 5, moveSpeed: 2 });
 
-  // Animate vertical platforms
-  useAnimateVerticalPlatform(verticalPlatforms, verticalPlatformRefsRef, {
-    moveDistance: 5,
-    moveSpeed: 2,
-  });
+  // Set up shadows
+  useSceneShadows(scene);
 
   return (
     <>
-      {/* Simple colliders - default static objects with hull colliders */}
-      {simpleCollidersGroup && (
+      {/* Static objects with hull colliders */}
+      {staticGroup && (
         <RigidBody type="fixed" colliders="hull">
-          <primitive object={simpleCollidersGroup} />
+          <primitive object={staticGroup} />
         </RigidBody>
       )}
 
-      {/* Horizontal Platforms - moving left/right with hull colliders, kinematic */}
-      {platforms.map((platformData, index) => {
-        const platform = platformData.object;
-        // Reset local position since RigidBody handles world position
-        platform.position.set(0, 0, 0);
-        
-        // Calculate initial position based on phase offset
-        const phase = platformData.phase || 0;
-        const moveDistance = 5; // Should match the hook's moveDistance
-        let initialOffsetX = 0;
-        
-        if (phase < 0.5) {
-          // First half: moving forward from start
-          initialOffsetX = (phase / 0.5) * moveDistance;
-        } else {
-          // Second half: moving backward from end
-          initialOffsetX = moveDistance - ((phase - 0.5) / 0.5) * (moveDistance * 2);
-        }
+      {/* Horizontal moving platforms */}
+      {platforms.map((data, index) => {
+        data.object.position.set(0, 0, 0);
+        const phase = data.phase || 0;
+        const moveDistance = 5;
+        const initialOffsetX = phase < 0.5 
+          ? (phase / 0.5) * moveDistance 
+          : moveDistance - ((phase - 0.5) / 0.5) * (moveDistance * 2);
         
         return (
           <RigidBody
-            key={`platform-${platform.name || index}`}
+            key={data.id || `platform-${index}`}
             type="kinematicPosition"
             colliders="hull"
-            position={[
-              platformData.startPos.x + initialOffsetX,
-              platformData.startPos.y,
-              platformData.startPos.z,
-            ]}
+            position={[data.startPos.x + initialOffsetX, data.startPos.y, data.startPos.z]}
             ref={(ref) => {
-              if (ref) {
-                platformRefsRef.current.set(platformData.id, ref);
-              } else {
-                platformRefsRef.current.delete(platformData.id);
-              }
+              if (ref) platformRefsRef.current.set(data.id, ref);
+              else platformRefsRef.current.delete(data.id);
             }}
           >
-            <primitive object={platform} />
+            <primitive object={data.object} />
           </RigidBody>
         );
       })}
 
-      {/* Vertical Platforms - moving up/down with hull colliders, kinematic */}
-      {verticalPlatforms.map((platformData, index) => {
-        const platform = platformData.object;
-        // Reset local position since RigidBody handles world position
-        platform.position.set(0, 0, 0);
-        
-        // Calculate initial position based on phase offset
-        const phase = platformData.phase || 0;
-        const moveDistance = 5; // Should match the hook's moveDistance
-        let initialOffsetY = 0;
-        
-        if (phase < 0.5) {
-          // First half: moving up from start
-          initialOffsetY = (phase / 0.5) * moveDistance;
-        } else {
-          // Second half: moving down from end
-          initialOffsetY = moveDistance - ((phase - 0.5) / 0.5) * (moveDistance * 2);
-        }
+      {/* Vertical moving platforms */}
+      {verticalPlatforms.map((data, index) => {
+        data.object.position.set(0, 0, 0);
+        const phase = data.phase || 0;
+        const moveDistance = 5;
+        const initialOffsetY = phase < 0.5 
+          ? (phase / 0.5) * moveDistance 
+          : moveDistance - ((phase - 0.5) / 0.5) * (moveDistance * 2);
         
         return (
           <RigidBody
-            key={`zplatform-${platform.name || index}`}
+            key={data.id || `zplatform-${index}`}
             type="kinematicPosition"
             colliders="hull"
-            position={[
-              platformData.startPos.x,
-              platformData.startPos.y + initialOffsetY,
-              platformData.startPos.z,
-            ]}
+            position={[data.startPos.x, data.startPos.y + initialOffsetY, data.startPos.z]}
             ref={(ref) => {
-              if (ref) {
-                verticalPlatformRefsRef.current.set(platformData.id, ref);
-              } else {
-                verticalPlatformRefsRef.current.delete(platformData.id);
-              }
+              if (ref) verticalPlatformRefsRef.current.set(data.id, ref);
+              else verticalPlatformRefsRef.current.delete(data.id);
             }}
           >
-            <primitive object={platform} />
+            <primitive object={data.object} />
           </RigidBody>
         );
       })}
 
-      {/* Trimesh - reserved for future complex objects */}
-      {/* {trimeshGroup && (
+      {/* Trimesh objects */}
+      {trimeshGroup && (
         <RigidBody type="fixed" colliders="trimesh">
           <primitive object={trimeshGroup} />
         </RigidBody>
-      )} */}
+      )}
     </>
   );
 }

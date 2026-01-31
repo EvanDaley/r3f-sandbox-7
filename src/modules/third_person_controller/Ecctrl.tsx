@@ -477,6 +477,25 @@ const Ecctrl: ForwardRefRenderFunction<CustomEcctrlRigidBody, EcctrlProps> = ({
   const { rapier, world } = useRapier();
 
   /**
+   * Sprint toggle state - toggle sprint on/off instead of holding
+   */
+  const [sprintToggled, setSprintToggled] = useState(true);
+  
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Toggle sprint when Shift is pressed
+      if (event.key === 'Shift' || event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+        setSprintToggled(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  /**
    * Joystick controls setup
    */
   const getJoystickValues = useJoystickControls(state => state.getJoystickValues)
@@ -1138,7 +1157,9 @@ const Ecctrl: ForwardRefRenderFunction<CustomEcctrlRigidBody, EcctrlProps> = ({
     /**
      * Getting all the useful keys from useKeyboardControls
      */
-    const { forward, backward, leftward, rightward, jump, run } = (isInsideKeyboardControls && getKeys) ? getKeys() : presetKeys;
+    const { forward, backward, leftward, rightward, jump } = (isInsideKeyboardControls && getKeys) ? getKeys() : presetKeys;
+    // Use sprint toggle instead of run key
+    const run = sprintToggled;
 
     // Getting moving directions (IIFE)
     modelEuler.y = ((movingDirection) => movingDirection === null ? modelEuler.y : movingDirection)

@@ -31,8 +31,8 @@ export default function ThirdPersonBlenderIntegrated() {
   /**
    * Debug settings
    */
-  const { physics, disableControl, disableFollowCam } = useControls("World Settings", {
-    physics: false,
+  const { showColliders, disableControl, disableFollowCam } = useControls("World Settings", {
+    showColliders: { value: false, label: "Show Colliders (Wireframe)" },
     disableControl: false,
     disableFollowCam: false,
   });
@@ -67,7 +67,7 @@ export default function ThirdPersonBlenderIntegrated() {
 
       <Lights />
 
-      <Physics debug={physics} timeStep="vary" paused={pausedPhysics}>
+      <Physics debug={showColliders} timeStep="vary" paused={pausedPhysics}>
         {/* Respawn player if they fall below -10 */}
         <RespawnHandler fallThreshold={-10} spawnPosition={[0, 5, 0]} />
 
