@@ -1,7 +1,7 @@
 import { Grid, KeyboardControls } from "@react-three/drei";
 import { Perf } from "r3f-perf";
 import { Physics } from "@react-three/rapier";
-import Ecctrl from "../src/Ecctrl";
+import Ecctrl from "@/modules/third_person_controller/Ecctrl";
 import Floor from "./Floor";
 import Lights from "./Lights";
 import Steps from "./Steps";
@@ -15,7 +15,7 @@ import { useControls } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useState } from "react";
 
-export default function Experience() {
+export default function ThirdPersonScene1() {
   /**
    * Delay physics activate
    */

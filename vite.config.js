@@ -7,8 +7,8 @@ const isCodeSandbox =
 
 const dev = defineConfig({
   plugins: [react()],
-  root: "example/",
-  publicDir: "../public/",
+  root: ".",
+  publicDir: "public/",
   base: "./",
   resolve: {
     alias: {
@@ -23,8 +23,8 @@ const dev = defineConfig({
 
 const exampleBuild = defineConfig({
   plugins: [react()],
-  root: "example/",
-  publicDir: "../public/",
+  root: ".",
+  publicDir: "public/",
   base: "/r3f-sandbox-7/", // GitHub Pages base path
   resolve: {
     alias: {
@@ -32,7 +32,7 @@ const exampleBuild = defineConfig({
     },
   },
   build: {
-    outDir: "../dist-example",
+    outDir: "dist-example",
     emptyOutDir: true,
   },
 });
