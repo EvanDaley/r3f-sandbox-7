@@ -4,7 +4,6 @@ import { Physics } from "@react-three/rapier";
 import Ecctrl from "@/modules/third_person_controller/Ecctrl";
 import Lights from "./Lights";
 import BlenderScene from "./BlenderScene";
-import MovingPlatforms from "./MovingPlatforms";
 import { useControls } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useState } from "react";
@@ -85,9 +84,6 @@ export default function ThirdPersonBlenderIntegrated() {
 
         {/* Blender Scene (includes physics colliders) */}
         <BlenderScene />
-
-        {/* Moving Platforms from Blender Scene */}
-        <MovingPlatforms />
       </Physics>
     </>
   );
