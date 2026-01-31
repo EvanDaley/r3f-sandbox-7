@@ -26,18 +26,22 @@ export function useRespawnOnFall(options = {}) {
       : new THREE.Vector3(...spawnPosition)
   );
 
-  // Find the character RigidBody by collider name
+  // Find the character RigidBody by searching for the first dynamic body
   useEffect(() => {
     if (!world) return;
 
     // Function to find character body
     const findCharacterBody = () => {
-      // Search through all colliders to find the character
-      for (let i = 0; i < world.colliders.len(); i++) {
-        const collider = world.colliders.get(i);
-        if (collider && collider.name() === characterColliderName) {
-          const body = collider.parent();
-          if (body) {
+      // Search through all bodies to find the character
+      // The character is typically the first dynamic body (bodyType 0 = Dynamic)
+      for (let i = 0; i < world.bodies.len(); i++) {
+        const body = world.bodies.get(i);
+        if (body) {
+          // Check if it's a dynamic body (type 0)
+          // Dynamic = 0, Fixed = 1, KinematicPosition = 2, KinematicVelocity = 3
+          const bodyType = body.bodyType();
+          if (bodyType === 0) {
+            // This should be the character (first dynamic body)
             characterBodyRef.current = body;
             return;
           }
@@ -48,11 +52,15 @@ export function useRespawnOnFall(options = {}) {
     // Try to find immediately
     findCharacterBody();
 
-    // Also try after a short delay in case character hasn't loaded yet
-    const timeout = setTimeout(findCharacterBody, 100);
+    // Also try after delays in case character hasn't loaded yet
+    const timeout1 = setTimeout(findCharacterBody, 100);
+    const timeout2 = setTimeout(findCharacterBody, 500);
 
-    return () => clearTimeout(timeout);
-  }, [world, characterColliderName]);
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+    };
+  }, [world]);
 
   // Check position and respawn if needed
   useFrame(() => {

@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useSceneShadows } from "./hooks/useSceneShadows";
 import { useAnimatePlatform } from "./hooks/useAnimatePlatform";
+import { useAnimateVerticalPlatform } from "./hooks/useAnimateVerticalPlatform";
 
 /**
  * BlenderScene Component
@@ -24,14 +25,15 @@ export default function BlenderScene({
   const { scene } = useGLTF(scenePath);
 
   // Categorize objects into three groups
-  const { simpleCollidersGroup, platforms, trimeshGroup } = useMemo(() => {
+  const { simpleCollidersGroup, platforms, verticalPlatforms, trimeshGroup } = useMemo(() => {
     if (!scene) {
-      return { simpleCollidersGroup: null, platforms: [], trimeshGroup: null };
+      return { simpleCollidersGroup: null, platforms: [], verticalPlatforms: [], trimeshGroup: null };
     }
 
     // Clone the scene for categorization
     const clonedScene = scene.clone();
     const platforms = [];
+    const verticalPlatforms = [];
     
     // Reserved for future use - complex objects that need trimesh colliders
     // const trimeshGroup = new THREE.Group();
@@ -40,16 +42,26 @@ export default function BlenderScene({
 
     // Find and extract platform objects
     // Match names that contain "platform" (case-insensitive) - handles names like "platform_move_2.001"
+    // Separate horizontal (platform) and vertical (zplatform) platforms
     const platformPattern = /platform/i;
+    const zplatformPattern = /zplatform/i;
     const platformObjects = [];
+    const zplatformObjects = [];
+    
     clonedScene.traverse((child) => {
-      // Check if this is a platform object (name contains "platform", case-insensitive)
-      if (child.name && platformPattern.test(child.name)) {
-        platformObjects.push(child);
+      if (child.name) {
+        // Check for vertical platforms first (zplatform)
+        if (zplatformPattern.test(child.name)) {
+          zplatformObjects.push(child);
+        }
+        // Then check for horizontal platforms (platform, but not zplatform)
+        else if (platformPattern.test(child.name)) {
+          platformObjects.push(child);
+        }
       }
     });
     
-    // Assign phases evenly and create platform data
+    // Assign phases evenly and create horizontal platform data
     platformObjects.forEach((child, index) => {
       // Distribute phases evenly across platforms (0-1, where 0 = start, 1 = end of cycle)
       const phase = platformObjects.length > 1 
@@ -60,6 +72,26 @@ export default function BlenderScene({
         object: child.clone(),
         startPos: child.position.clone(),
         id: child.name || `platform-${index}`, // Unique identifier
+        phase: phase, // Phase offset (0-1) to start at different positions in cycle
+      });
+      
+      // Remove from cloned scene
+      if (child.parent) {
+        child.parent.remove(child);
+      }
+    });
+    
+    // Assign phases evenly and create vertical platform data
+    zplatformObjects.forEach((child, index) => {
+      // Distribute phases evenly across platforms (0-1, where 0 = start, 1 = end of cycle)
+      const phase = zplatformObjects.length > 1 
+        ? index / (zplatformObjects.length - 1) 
+        : 0; // Evenly distribute from 0 to 1
+      
+      verticalPlatforms.push({
+        object: child.clone(),
+        startPos: child.position.clone(),
+        id: child.name || `zplatform-${index}`, // Unique identifier
         phase: phase, // Phase offset (0-1) to start at different positions in cycle
       });
       
@@ -83,6 +115,7 @@ export default function BlenderScene({
     return {
       simpleCollidersGroup: clonedScene, // Remaining objects go to simple colliders
       platforms: platforms,
+      verticalPlatforms: verticalPlatforms,
       trimeshGroup: trimeshGroup,
     };
   }, [scene]);
@@ -92,9 +125,16 @@ export default function BlenderScene({
 
   // Store RigidBody refs for platforms
   const platformRefsRef = useRef(new Map());
+  const verticalPlatformRefsRef = useRef(new Map());
 
-  // Animate platforms
+  // Animate horizontal platforms
   useAnimatePlatform(platforms, platformRefsRef, {
+    moveDistance: 5,
+    moveSpeed: 2,
+  });
+
+  // Animate vertical platforms
+  useAnimateVerticalPlatform(verticalPlatforms, verticalPlatformRefsRef, {
     moveDistance: 5,
     moveSpeed: 2,
   });
@@ -108,7 +148,7 @@ export default function BlenderScene({
         </RigidBody>
       )}
 
-      {/* Platforms - moving objects with hull colliders, kinematic */}
+      {/* Horizontal Platforms - moving left/right with hull colliders, kinematic */}
       {platforms.map((platformData, index) => {
         const platform = platformData.object;
         // Reset local position since RigidBody handles world position
@@ -142,6 +182,48 @@ export default function BlenderScene({
                 platformRefsRef.current.set(platformData.id, ref);
               } else {
                 platformRefsRef.current.delete(platformData.id);
+              }
+            }}
+          >
+            <primitive object={platform} />
+          </RigidBody>
+        );
+      })}
+
+      {/* Vertical Platforms - moving up/down with hull colliders, kinematic */}
+      {verticalPlatforms.map((platformData, index) => {
+        const platform = platformData.object;
+        // Reset local position since RigidBody handles world position
+        platform.position.set(0, 0, 0);
+        
+        // Calculate initial position based on phase offset
+        const phase = platformData.phase || 0;
+        const moveDistance = 5; // Should match the hook's moveDistance
+        let initialOffsetY = 0;
+        
+        if (phase < 0.5) {
+          // First half: moving up from start
+          initialOffsetY = (phase / 0.5) * moveDistance;
+        } else {
+          // Second half: moving down from end
+          initialOffsetY = moveDistance - ((phase - 0.5) / 0.5) * (moveDistance * 2);
+        }
+        
+        return (
+          <RigidBody
+            key={`zplatform-${platform.name || index}`}
+            type="kinematicPosition"
+            colliders="hull"
+            position={[
+              platformData.startPos.x,
+              platformData.startPos.y + initialOffsetY,
+              platformData.startPos.z,
+            ]}
+            ref={(ref) => {
+              if (ref) {
+                verticalPlatformRefsRef.current.set(platformData.id, ref);
+              } else {
+                verticalPlatformRefsRef.current.delete(platformData.id);
               }
             }}
           >
