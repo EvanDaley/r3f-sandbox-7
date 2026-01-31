@@ -1,75 +1,134 @@
 import { useGLTF } from "@react-three/drei";
 import { RigidBody } from "@react-three/rapier";
-import { useMemo, useEffect, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import { useSceneShadows } from "./hooks/useSceneShadows";
+import { useAnimatePlatform } from "./hooks/useAnimatePlatform";
 
 /**
  * BlenderScene Component
  * 
- * Loads a GLB scene from Blender and renders everything with physics colliders.
- * Blender controls: position, scale, and how many objects exist.
+ * Loads a GLB scene from Blender and categorizes objects into three groups:
+ * 1. simple_colliders - Default static objects with hull colliders (fixed)
+ * 2. platforms - Moving platforms with hull colliders (kinematic)
+ * 3. trimesh - Complex objects with trimesh colliders (reserved for future use)
  * 
- * This follows the same pattern as Slopes.jsx and RoughPlane.jsx - wrapping the entire
- * scene in a single RigidBody with trimesh colliders, which is simpler and more efficient
- * than creating individual RigidBodies for each mesh.
+ * Objects are categorized by name patterns:
+ * - Objects starting with "platform_" go to platforms group
+ * - Other objects go to simple_colliders by default
+ * - trimesh group is reserved for future complex objects
  */
 export default function BlenderScene({ 
   scenePath = "./models/third_person_blender_integrated/scene.glb"
 }) {
   const { scene } = useGLTF(scenePath);
-  const platformRef = useRef(null);
-  const startPosRef = useRef(null);
-  const directionRef = useRef(1);
-  const moveDistance = useRef(5); // Distance to move in each direction
-  const moveSpeed = useRef(2); // Speed of movement
 
-  // Find and set up the moving platform
-  useEffect(() => {
-    if (!scene) return;
+  // Categorize objects into three groups
+  const { simpleCollidersGroup, platforms, trimeshGroup } = useMemo(() => {
+    if (!scene) {
+      return { simpleCollidersGroup: null, platforms: [], trimeshGroup: null };
+    }
+
+    // Clone the scene for categorization
+    const clonedScene = scene.clone();
+    const platforms = [];
     
-    scene.traverse((child) => {
-      // Set up shadow receiving for meshes
-      if (
-        child instanceof THREE.Mesh &&
-        child.material instanceof THREE.MeshStandardMaterial
-      ) {
-        child.receiveShadow = true;
-      }
+    // Reserved for future use - complex objects that need trimesh colliders
+    // const trimeshGroup = new THREE.Group();
+    // trimeshGroup.name = "trimesh";
+    const trimeshGroup = null;
 
-      // Find the platform_move_2 object
-      if (child.name === "platform_move_2") {
-        platformRef.current = child;
-        // Store the initial position
-        startPosRef.current = child.position.clone();
+    // Find and extract platform objects
+    const objectsToRemove = [];
+    clonedScene.traverse((child) => {
+      // Check if this is a platform object (name starts with "platform_")
+      if (child.name.startsWith("platform_")) {
+        platforms.push({
+          object: child.clone(),
+          startPos: child.position.clone(),
+          id: child.name || `platform-${platforms.length}`, // Unique identifier
+        });
+        objectsToRemove.push(child);
+      }
+      // Future: Add trimesh categorization logic here
+      // else if (child.name.startsWith("trimesh_")) {
+      //   const cloned = child.clone();
+      //   trimeshGroup.add(cloned);
+      //   objectsToRemove.push(child);
+      // }
+    });
+
+    // Remove platform objects from the cloned scene
+    objectsToRemove.forEach((obj) => {
+      if (obj.parent) {
+        obj.parent.remove(obj);
       }
     });
+
+    return {
+      simpleCollidersGroup: clonedScene, // Remaining objects go to simple colliders
+      platforms: platforms,
+      trimeshGroup: trimeshGroup,
+    };
   }, [scene]);
 
-  // Animate the moving platform
-  useFrame((state, delta) => {
-    if (!platformRef.current || !startPosRef.current) return;
+  // Set up shadow receiving for all groups
+  useSceneShadows(scene);
 
-    const platform = platformRef.current;
-    const startPos = startPosRef.current;
-    const direction = directionRef.current;
+  // Store RigidBody refs for platforms
+  const platformRefsRef = useRef(new Map());
 
-    // Move the platform
-    platform.position.x += moveSpeed.current * delta * direction;
-
-    // Check if we've reached the limits and reverse direction
-    const distanceFromStart = platform.position.x - startPos.x;
-    if (distanceFromStart >= moveDistance.current) {
-      directionRef.current = -1;
-    } else if (distanceFromStart <= -moveDistance.current) {
-      directionRef.current = 1;
-    }
+  // Animate platforms
+  useAnimatePlatform(platforms, platformRefsRef, {
+    moveDistance: 5,
+    moveSpeed: 2,
   });
 
   return (
-    <RigidBody type="fixed" colliders="trimesh">
-      <primitive object={scene} />
-    </RigidBody>
+    <>
+      {/* Simple colliders - default static objects with hull colliders */}
+      {simpleCollidersGroup && (
+        <RigidBody type="fixed" colliders="hull">
+          <primitive object={simpleCollidersGroup} />
+        </RigidBody>
+      )}
+
+      {/* Platforms - moving objects with hull colliders, kinematic */}
+      {platforms.map((platformData, index) => {
+        const platform = platformData.object;
+        // Reset local position since RigidBody handles world position
+        platform.position.set(0, 0, 0);
+        
+        return (
+          <RigidBody
+            key={`platform-${platform.name || index}`}
+            type="kinematicPosition"
+            colliders="hull"
+            position={[
+              platformData.startPos.x,
+              platformData.startPos.y,
+              platformData.startPos.z,
+            ]}
+            ref={(ref) => {
+              if (ref) {
+                platformRefsRef.current.set(platformData.id, ref);
+              } else {
+                platformRefsRef.current.delete(platformData.id);
+              }
+            }}
+          >
+            <primitive object={platform} />
+          </RigidBody>
+        );
+      })}
+
+      {/* Trimesh - reserved for future complex objects */}
+      {/* {trimeshGroup && (
+        <RigidBody type="fixed" colliders="trimesh">
+          <primitive object={trimeshGroup} />
+        </RigidBody>
+      )} */}
+    </>
   );
 }
 
