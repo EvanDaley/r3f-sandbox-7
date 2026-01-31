@@ -5,7 +5,7 @@ import * as THREE from "three";
 
 export default function Slopes() {
   // Load models
-  const slopes = useGLTF("./slopes.glb");
+  const slopes = useGLTF("./models/third_person_controller/slopes.glb");
 
   useEffect(() => {
     // Receive Shadows

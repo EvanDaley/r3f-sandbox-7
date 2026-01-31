@@ -16,7 +16,7 @@ import { useFrame } from "@react-three/fiber";
 export default function CharacterModel(props) {
   // Change the character src to yours
   const group = useRef();
-  const { nodes, animations } = useGLTF("/Floating Character.glb")
+  const { nodes, animations } = useGLTF("./models/third_person_controller/Floating Character.glb")
   const { actions } = useAnimations(animations, group);
   // gradientMapTexture for MeshToonMaterial
   const gradientMapTexture = useTexture("./textures/3.jpg");
@@ -296,4 +296,4 @@ export default function CharacterModel(props) {
 }
 
 // Change the character src to yours
-useGLTF.preload("/Floating Character.glb");
+useGLTF.preload("./models/third_person_controller/Floating Character.glb");

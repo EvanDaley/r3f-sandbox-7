@@ -25,7 +25,7 @@ const exampleBuild = defineConfig({
   plugins: [react()],
   root: "example/",
   publicDir: "../public/",
-  base: "./",
+  base: "/r3f-sandbox-7/", // GitHub Pages base path
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

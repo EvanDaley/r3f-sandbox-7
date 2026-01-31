@@ -5,7 +5,7 @@ import * as THREE from "three";
 
 export default function RoughPlane() {
   // Load models
-  const roughPlane = useGLTF("./roughPlane.glb");
+  const roughPlane = useGLTF("./models/third_person_controller/roughPlane.glb");
 
   useEffect(() => {
     // Receive Shadows
