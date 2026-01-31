@@ -7,6 +7,13 @@ import BlenderScene from "./BlenderScene";
 import { useControls } from "leva";
 import CharacterModel from "./CharacterModel";
 import React, { useEffect, useState } from "react";
+import { useRespawnOnFall } from "./hooks/useRespawnOnFall";
+
+// Component wrapper for the respawn hook
+function RespawnHandler({ fallThreshold, spawnPosition }) {
+  useRespawnOnFall({ fallThreshold, spawnPosition });
+  return null;
+}
 
 export default function ThirdPersonBlenderIntegrated() {
   /**
@@ -50,17 +57,20 @@ export default function ThirdPersonBlenderIntegrated() {
     <>
       <Perf position="top-left" minimal />
 
-      <Grid
+      {/* <Grid
         args={[300, 300]}
         sectionColor={"lightgray"}
         cellColor={"gray"}
         position={[0, 0, 0]}
         userData={{ camExcludeCollision: true }} // this won't be collide by camera ray
-      />
+      /> */}
 
       <Lights />
 
       <Physics debug={physics} timeStep="vary" paused={pausedPhysics}>
+        {/* Respawn player if they fall below -10 */}
+        <RespawnHandler fallThreshold={-10} spawnPosition={[0, 5, 0]} />
+
         {/* Keyboard preset */}
         <KeyboardControls map={keyboardMap}>
           {/* Character Control */}
