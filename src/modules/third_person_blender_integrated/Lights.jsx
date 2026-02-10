@@ -14,13 +14,13 @@ export default function Lights() {
         shadow-normalBias={0.06}
         position={[20, 30, 10]}
         intensity={5}
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[512, 512]}
         shadow-camera-near={1}
-        shadow-camera-far={50}
-        shadow-camera-top={50}
-        shadow-camera-right={50}
-        shadow-camera-bottom={-50}
-        shadow-camera-left={-50}
+        shadow-camera-far={30}
+        shadow-camera-top={20}
+        shadow-camera-right={20}
+        shadow-camera-bottom={-20}
+        shadow-camera-left={-20}
         name="followLight"
         ref={directionalLightRef}
       />

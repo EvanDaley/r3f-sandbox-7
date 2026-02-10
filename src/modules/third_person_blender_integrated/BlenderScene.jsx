@@ -92,8 +92,8 @@ export default function BlenderScene({
   const verticalPlatformRefsRef = useRef(new Map());
 
   // Animate platforms
-  useAnimatePlatform(platforms, platformRefsRef, { moveDistance: 5, moveSpeed: 2 });
-  useAnimateVerticalPlatform(verticalPlatforms, verticalPlatformRefsRef, { moveDistance: 5, moveSpeed: 2 });
+  useAnimatePlatform(platforms, platformRefsRef, { moveDistance: 5, moveSpeed: 1 });
+  useAnimateVerticalPlatform(verticalPlatforms, verticalPlatformRefsRef, { moveDistance: 5, moveSpeed: 1 });
 
   // Set up shadows
   useSceneShadows(scene);
@@ -157,7 +157,8 @@ export default function BlenderScene({
         );
       })}
 
-      {/* Trimesh objects */}
+      {/* Trimesh objects - Note: trimesh is more accurate but slower than hull.
+          For better performance, consider using colliders="hull" if geometry is convex */}
       {trimeshGroup && (
         <RigidBody type="fixed" colliders="trimesh">
           <primitive object={trimeshGroup} />

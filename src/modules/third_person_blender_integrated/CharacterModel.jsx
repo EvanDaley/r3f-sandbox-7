@@ -171,14 +171,18 @@ export default function CharacterModel(props) {
         .play();
       action.clampWhenFinished = true;
       // Only show mug during cheer action
-      if (curAnimation === animationSet.action3) {
-        mugModel.visible = true;
-      } else {
-        mugModel.visible = false;
+      if (mugModel) {
+        if (curAnimation === animationSet.action3) {
+          mugModel.visible = true;
+        } else {
+          mugModel.visible = false;
+        }
       }
     } else {
       action.reset().fadeIn(0.2).play();
-      mugModel.visible = false;
+      if (mugModel) {
+        mugModel.visible = false;
+      }
     }
 
     // When any action is clamp and finished reset animation
