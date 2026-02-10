@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { useSceneShadows } from "./hooks/useSceneShadows";
 import { useAnimatePlatform } from "./hooks/useAnimatePlatform";
 import { useAnimateVerticalPlatform } from "./hooks/useAnimateVerticalPlatform";
+import TutorialGuy from "./TutorialGuy";
 
 /**
  * BlenderScene Component
@@ -21,9 +22,9 @@ export default function BlenderScene({
   const { scene } = useGLTF(scenePath);
 
   // Categorize objects into groups
-  const { staticGroup, platforms, verticalPlatforms, trimeshGroup } = useMemo(() => {
+  const { staticGroup, platforms, verticalPlatforms, trimeshGroup, tutorialGuyPosition } = useMemo(() => {
     if (!scene) {
-      return { staticGroup: null, platforms: [], verticalPlatforms: [], trimeshGroup: null };
+      return { staticGroup: null, platforms: [], verticalPlatforms: [], trimeshGroup: null, tutorialGuyPosition: null };
     }
 
     // Clone the entire scene once
@@ -31,12 +32,23 @@ export default function BlenderScene({
     const trimeshGroup = new THREE.Group();
     const platforms = [];
     const verticalPlatforms = [];
+    let tutorialGuyPosition = null;
     
     const platformPattern = /platform/i;
     const zplatformPattern = /zplatform/i;
+    const tutorialGuyPattern = /tutorial-guy-1|tutorialguy|tutorial_guy/i;
     const objectsToRemove = [];
     
-    // Find platforms and static objects
+    // Debug: log all object names to find tutorial-guy
+    const allObjectNames = [];
+    clonedScene.traverse((child) => {
+      if (child.name) {
+        allObjectNames.push(child.name);
+      }
+    });
+    console.log("All object names in scene:", allObjectNames);
+    
+    // Find platforms, static objects, and tutorial-guy-1
     clonedScene.traverse((child) => {
       if (!child.name) return;
       
@@ -59,6 +71,14 @@ export default function BlenderScene({
       } else if (child.name === "static") {
         const cloned = child.clone();
         trimeshGroup.add(cloned);
+        objectsToRemove.push(child);
+      } else if (tutorialGuyPattern.test(child.name)) {
+        // Extract position and remove from scene
+        console.log("Found tutorial-guy object:", child.name, "at local position:", child.position);
+        tutorialGuyPosition = new THREE.Vector3();
+        // Get world position
+        child.getWorldPosition(tutorialGuyPosition);
+        console.log("World position:", tutorialGuyPosition);
         objectsToRemove.push(child);
       }
     });
@@ -84,6 +104,7 @@ export default function BlenderScene({
       platforms,
       verticalPlatforms,
       trimeshGroup: trimeshGroup.children.length > 0 ? trimeshGroup : null,
+      tutorialGuyPosition,
     };
   }, [scene]);
 
@@ -163,6 +184,14 @@ export default function BlenderScene({
         <RigidBody type="fixed" colliders="trimesh">
           <primitive object={trimeshGroup} />
         </RigidBody>
+      )}
+
+      {/* Tutorial Guy - replaces tutorial-guy-1 object from Blender scene */}
+      {tutorialGuyPosition ? (
+        <TutorialGuy position={[tutorialGuyPosition.x, tutorialGuyPosition.y, tutorialGuyPosition.z]} />
+      ) : (
+        // Fallback: render at origin if object not found (for debugging)
+        <TutorialGuy position={[0, 5, 0]} />
       )}
     </>
   );
