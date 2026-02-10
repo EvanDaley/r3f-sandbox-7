@@ -53,6 +53,10 @@ export function useAnimateVerticalPlatform(platforms, platformRefsRef, options =
   useFrame((state, delta) => {
     if (!platforms || platforms.length === 0) return;
 
+    // Clamp delta to prevent large jumps when tab regains focus
+    // This prevents platforms from jumping when you switch back to the tab
+    if (delta > 0.1) delta = 0.1;
+
     platforms.forEach((platformData) => {
       const data = platformsDataRef.current.get(platformData.id);
       const rigidBodyRef = platformRefsRef.current.get(platformData.id);
