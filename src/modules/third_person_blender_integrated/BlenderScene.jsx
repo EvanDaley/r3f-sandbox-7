@@ -6,6 +6,7 @@ import { useSceneShadows } from "./hooks/useSceneShadows";
 import { useAnimatePlatform } from "./hooks/useAnimatePlatform";
 import { useAnimateVerticalPlatform } from "./hooks/useAnimateVerticalPlatform";
 import TutorialGuy from "./TutorialGuy";
+import AnimatedCharacters from "./AnimatedCharacters";
 
 /**
  * BlenderScene Component
@@ -193,6 +194,9 @@ export default function BlenderScene({
         // Fallback: render at origin if object not found (for debugging)
         <TutorialGuy position={[0, 5, 0]} />
       )}
+
+      {/* Animated Characters from animated-characters.glb */}
+      <AnimatedCharacters />
     </>
   );
 }
