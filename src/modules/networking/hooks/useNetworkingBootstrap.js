@@ -1,8 +1,9 @@
 import { useCallback } from "react";
-import { dispatchIncomingNetworkMessage } from "../core/networkEvents";
+import { broadcastNetworkMessage, dispatchIncomingNetworkMessage } from "../core/networkEvents";
 import { initHostedPeer } from "../initializers/initHostedPeer";
 import { initLocalhostPeer } from "../initializers/initLocalhostPeer";
-import { useNetworkingStore } from "../stores/useNetworkingStore";
+import { NETWORK_ROLE, useNetworkingStore } from "../stores/useNetworkingStore";
+import { PLAYER_STATE_CHANNEL, PLAYER_STATE_REMOVE } from "@/modules/rpg/networking/playerNetworkProtocol";
 
 const log = (...args) => {
   console.log("[network/bootstrap]", ...args);
@@ -11,6 +12,19 @@ const log = (...args) => {
 const isLocalhostEnvironment = () => {
   const host = window.location.hostname;
   return host === "localhost" || host === "127.0.0.1";
+};
+
+const relayToOtherClientsIfHost = (message, sourcePeerId) => {
+  if (!message || typeof message !== "object") return;
+
+  const { role, activeConnections } = useNetworkingStore.getState();
+  if (role !== NETWORK_ROLE.HOST) return;
+
+  Object.values(activeConnections).forEach((connection) => {
+    if (!connection?.open) return;
+    if (connection.peer === sourcePeerId) return;
+    connection.send(message);
+  });
 };
 
 const setupConnectionLifecycle = (connection, actions) => {
@@ -25,11 +39,21 @@ const setupConnectionLifecycle = (connection, actions) => {
   connection.on("data", (data) => {
     log("connection data", { peer: connection.peer, data });
     dispatchIncomingNetworkMessage(data, connection.peer);
+    relayToOtherClientsIfHost(data, connection.peer);
   });
 
   connection.on("close", () => {
     log("connection close", { peer: connection.peer });
     actions.removeConnection(connection.peer);
+
+    const { role } = useNetworkingStore.getState();
+    if (role === NETWORK_ROLE.HOST) {
+      broadcastNetworkMessage({
+        channel: PLAYER_STATE_CHANNEL,
+        type: PLAYER_STATE_REMOVE,
+        payload: { peerId: connection.peer },
+      });
+    }
   });
 
   connection.on("error", (error) => {

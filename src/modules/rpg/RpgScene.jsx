@@ -9,7 +9,8 @@ import { RPG_KEYBOARD_MAP, RPG_TRAINING_STATIONS } from './config/progressionCon
 import useNearbyInteractables from './hooks/useNearbyInteractables';
 import useRpgProgressionStore from './stores/useRpgProgressionStore';
 import ProgressionSystem from './systems/ProgressionSystem';
-import NetworkColorBox from './components/NetworkColorBox';
+import RemotePlayers from './components/RemotePlayers';
+import { useNetworkedPlayerSync } from './hooks/useNetworkedPlayerSync';
 
 function PlayerCharacter({ controllerRef }) {
   return (
@@ -41,6 +42,8 @@ export default function RpgScene() {
     () => RPG_TRAINING_STATIONS.map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
     []
   );
+
+  useNetworkedPlayerSync({ controllerRef });
 
   const nearbyInteractableIds = useNearbyInteractables({
     controllerRef,
@@ -106,6 +109,8 @@ export default function RpgScene() {
         <KeyboardControls map={RPG_KEYBOARD_MAP}>
           <PlayerCharacter controllerRef={controllerRef} />
         </KeyboardControls>
+
+        <RemotePlayers />
 
         <ProgressionSystem
           controllerRef={controllerRef}
