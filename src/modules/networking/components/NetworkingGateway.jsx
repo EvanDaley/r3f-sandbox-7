@@ -11,9 +11,14 @@ export default function NetworkingGateway() {
   const role = useNetworkingStore((state) => state.role);
 
   useEffect(() => {
+    console.log("[network/gateway] mount", { isLocalhost });
     if (!isLocalhost) return;
     bootstrapLocalhost();
   }, [bootstrapLocalhost, isLocalhost]);
+
+  useEffect(() => {
+    console.log("[network/gateway] state", { status, peerId, role, hasCompletedHostedNameFlow });
+  }, [status, peerId, role, hasCompletedHostedNameFlow]);
 
   if (!isLocalhost && !hasCompletedHostedNameFlow) {
     return <NetworkSplashScreen onSubmitName={bootstrapHosted} />;

@@ -8,6 +8,7 @@ import TrainingStation from './components/TrainingStation';
 import { RPG_KEYBOARD_MAP, RPG_TRAINING_STATIONS } from './config/progressionConfig';
 import useRpgProgressionStore from './stores/useRpgProgressionStore';
 import ProgressionSystem from './systems/ProgressionSystem';
+import NetworkColorBox from './components/NetworkColorBox';
 
 function PlayerCharacter({ controllerRef }) {
   return (
@@ -116,6 +117,8 @@ export default function RpgScene() {
         {trainingStations.map((station) => (
           <TrainingStation key={station.id} station={station} />
         ))}
+
+        <NetworkColorBox />
       </Physics>
     </>
   );

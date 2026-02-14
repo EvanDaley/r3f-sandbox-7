@@ -7,6 +7,7 @@ export default function NetworkSplashScreen({ onSubmitName }) {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
+    console.log("[network/splash] submitted display name", trimmed);
     onSubmitName(trimmed);
   };
 
