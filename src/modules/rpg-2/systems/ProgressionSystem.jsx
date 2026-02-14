@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useGame } from '@/modules/third_person_controller/stores/useGame';
 import useRpg2ProgressionStore from '../stores/useRpg2ProgressionStore';
 
 const INTERACTION_RANGE = 2.2;
@@ -8,10 +9,20 @@ const ACTION_COOLDOWN = 0.45;
 const RUNNING_XP_PER_SECOND = 5.5;
 const MIN_RUNNING_SPEED = 0.25;
 
+const INTERACTION_ANIMATION_BY_SKILL = Object.freeze({
+  woodcutting: 'action4',
+  mining: 'action4',
+  combat: 'action4',
+  crafting: 'action2',
+});
+
 export default function ProgressionSystem({ controllerRef, trainingStations, inputRef }) {
   const lastActionAt = useRef(0);
   const playerPosition = useMemo(() => new THREE.Vector3(), []);
   const addExperience = useRpg2ProgressionStore((state) => state.addExperience);
+  const animationSet = useGame((state) => state.animationSet);
+  const triggerAction2Animation = useGame((state) => state.action2);
+  const triggerAction4Animation = useGame((state) => state.action4);
 
   useFrame((_, delta) => {
     const rigidBody = controllerRef.current?.group;
@@ -42,6 +53,15 @@ export default function ProgressionSystem({ controllerRef, trainingStations, inp
     }
 
     addExperience(nearestStation.skillId, nearestStation.xp, nearestStation.name);
+
+    const interactionAnimation = INTERACTION_ANIMATION_BY_SKILL[nearestStation.skillId];
+    if (interactionAnimation === 'action4' && animationSet.action4) {
+      triggerAction4Animation();
+    }
+
+    if (interactionAnimation === 'action2' && animationSet.action2) {
+      triggerAction2Animation();
+    }
     lastActionAt.current = performance.now();
   });
 
