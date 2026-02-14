@@ -10,8 +10,8 @@ const MAX_MESSAGE_LENGTH = 500;
 const overlayStyles = {
   launcher: {
     position: "fixed",
-    right: 12,
-    top: 54,
+    left: 12,
+    bottom: 18,
     zIndex: 55,
     border: "1px solid rgba(255,255,255,0.24)",
     borderRadius: 999,
