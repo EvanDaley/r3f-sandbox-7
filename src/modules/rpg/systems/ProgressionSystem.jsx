@@ -3,8 +3,8 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useGame } from '@/modules/third_person_controller/stores/useGame';
 import useRpgProgressionStore from '../stores/useRpgProgressionStore';
+import { INTERACTION_RANGE } from '../hooks/useNearbyInteractables';
 
-const INTERACTION_RANGE = 2.2;
 const ACTION_COOLDOWN = 0.45;
 const RUNNING_XP_PER_SECOND = 5.5;
 const MIN_RUNNING_SPEED = 0.25;
@@ -16,7 +16,7 @@ const INTERACTION_ANIMATION_BY_SKILL = Object.freeze({
   crafting: 'action2',
 });
 
-export default function ProgressionSystem({ controllerRef, trainingStations, inputRef }) {
+export default function ProgressionSystem({ controllerRef, trainingStations, inputRef, nearbyInteractableIds }) {
   const lastActionAt = useRef(0);
   const playerPosition = useMemo(() => new THREE.Vector3(), []);
   const addExperience = useRpgProgressionStore((state) => state.addExperience);
@@ -40,13 +40,25 @@ export default function ProgressionSystem({ controllerRef, trainingStations, inp
     }
 
     const canInteract = inputRef.current.interact && performance.now() - lastActionAt.current > ACTION_COOLDOWN * 1000;
-    if (!canInteract) {
+    if (!canInteract || nearbyInteractableIds.size === 0) {
       return;
     }
 
-    const nearestStation = trainingStations.find(
-      (station) => playerPosition.distanceTo(station.vector) <= INTERACTION_RANGE
-    );
+    let nearestStation = null;
+    let nearestDistanceSquared = INTERACTION_RANGE * INTERACTION_RANGE;
+
+    for (let i = 0; i < trainingStations.length; i += 1) {
+      const station = trainingStations[i];
+      if (!nearbyInteractableIds.has(station.id)) {
+        continue;
+      }
+
+      const distanceSquared = playerPosition.distanceToSquared(station.vector);
+      if (distanceSquared <= nearestDistanceSquared) {
+        nearestDistanceSquared = distanceSquared;
+        nearestStation = station;
+      }
+    }
 
     if (!nearestStation) {
       return;
