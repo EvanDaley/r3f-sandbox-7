@@ -7,6 +7,28 @@ const CHAT_MESSAGE_TYPE = "text";
 
 const MAX_MESSAGE_LENGTH = 500;
 
+const getCameraErrorMessage = (error) => {
+  if (!error) return "We couldn't access your camera right now.";
+
+  if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+    return "Camera/microphone permission was denied. Please allow access in your browser settings.";
+  }
+
+  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+    return "No camera or microphone was detected on this device.";
+  }
+
+  if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+    return "Your camera is busy or unavailable. Close other apps using the camera and try again.";
+  }
+
+  if (error.name === "OverconstrainedError") {
+    return "Your camera does not support the requested quality settings.";
+  }
+
+  return "We couldn't start your camera/microphone. Please try again.";
+};
+
 const overlayStyles = {
   launcher: {
     position: "fixed",
@@ -182,6 +204,7 @@ export default function NetworkCommsOverlay() {
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [mediaError, setMediaError] = useState("");
 
   const outboundCallsRef = useRef({});
   const inboundCallsRef = useRef({});
@@ -242,29 +265,36 @@ export default function NetworkCommsOverlay() {
   const ensureCameraAndMic = useCallback(async () => {
     if (cameraStream) return cameraStream;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { max: 24 },
-      },
-    });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { max: 24 },
+        },
+      });
 
-    setCameraStream(stream);
-    return stream;
+      return stream;
+    } catch (error) {
+      throw new Error(getCameraErrorMessage(error), { cause: error });
+    }
   }, [cameraStream]);
 
   const enableDevices = useCallback(async () => {
     try {
+      setMediaError("");
       const stream = await ensureCameraAndMic();
+      setCameraStream(stream);
       setOutgoingStream(stream);
       connectMediaCalls(stream);
     } catch (error) {
+      const errorMessage = error?.message || "Could not initialize camera/mic.";
+      setMediaError(errorMessage);
       console.error("[network/comms] could not initialize camera/mic", error);
     }
   }, [connectMediaCalls, ensureCameraAndMic]);
@@ -461,6 +491,11 @@ export default function NetworkCommsOverlay() {
             </div>
 
             <div style={overlayStyles.controlsBar}>
+              {mediaError && (
+                <div style={{ width: "100%", color: "#ffb4b4", fontSize: 12, lineHeight: 1.35 }}>
+                  {mediaError}
+                </div>
+              )}
               <button type="button" style={controlButtonStyle({ active: !!cameraStream })} onClick={enableDevices}>
                 {cameraStream ? "Devices Ready" : "Join with camera/mic"}
               </button>
