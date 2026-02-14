@@ -34,12 +34,15 @@
   "devDependencies": {
     "@react-three/drei": "^10.3.0",
     "@react-three/fiber": "^9.1.2",
+    "@react-three/rapier": "^2.1.0",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "cross-env": "^7.0.3",
     "gh-pages": "^6.1.1",
     "r3f-perf": "^7.2.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
     "vite": "^7.0.0"
   },
