@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useGame } from '@/modules/third_person_controller/stores/useGame';
-import useRpg2ProgressionStore from '../stores/useRpg2ProgressionStore';
+import useRpgProgressionStore from '../stores/useRpgProgressionStore';
 
 const INTERACTION_RANGE = 2.2;
 const ACTION_COOLDOWN = 0.45;
@@ -19,7 +19,7 @@ const INTERACTION_ANIMATION_BY_SKILL = Object.freeze({
 export default function ProgressionSystem({ controllerRef, trainingStations, inputRef }) {
   const lastActionAt = useRef(0);
   const playerPosition = useMemo(() => new THREE.Vector3(), []);
-  const addExperience = useRpg2ProgressionStore((state) => state.addExperience);
+  const addExperience = useRpgProgressionStore((state) => state.addExperience);
   const animationSet = useGame((state) => state.animationSet);
   const triggerAction2Animation = useGame((state) => state.action2);
   const triggerAction4Animation = useGame((state) => state.action4);

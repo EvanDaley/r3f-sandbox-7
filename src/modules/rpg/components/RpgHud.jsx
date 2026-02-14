@@ -1,4 +1,4 @@
-import useRpg2ProgressionStore from '../stores/useRpg2ProgressionStore';
+import useRpgProgressionStore from '../stores/useRpgProgressionStore';
 
 const panel = {
   width: 360,
@@ -29,16 +29,16 @@ const ProgressBar = ({ color, value }) => (
   </div>
 );
 
-export default function Rpg2Hud() {
-  const skills = useRpg2ProgressionStore((state) => state.skills);
-  const totalLevel = useRpg2ProgressionStore((state) => state.totalLevel);
-  const totalXp = useRpg2ProgressionStore((state) => state.totalXp);
-  const lastAction = useRpg2ProgressionStore((state) => state.lastAction);
+export default function RpgHud() {
+  const skills = useRpgProgressionStore((state) => state.skills);
+  const totalLevel = useRpgProgressionStore((state) => state.totalLevel);
+  const totalXp = useRpgProgressionStore((state) => state.totalXp);
+  const lastAction = useRpgProgressionStore((state) => state.lastAction);
 
   return (
     <div style={panel}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <strong>RPG Foundation v2</strong>
+        <strong>RPG Foundation</strong>
         <span>Lvl Σ {totalLevel}</span>
       </div>
       <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>Total XP: {Math.floor(totalXp)}</div>

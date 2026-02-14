@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import CharacterModel from '../third_person_blender_integrated/CharacterModel';
 import Ecctrl from '../third_person_controller/Ecctrl';
 import TrainingStation from './components/TrainingStation';
-import { RPG2_KEYBOARD_MAP, RPG2_TRAINING_STATIONS } from './config/progressionConfig';
-import useRpg2ProgressionStore from './stores/useRpg2ProgressionStore';
+import { RPG_KEYBOARD_MAP, RPG_TRAINING_STATIONS } from './config/progressionConfig';
+import useRpgProgressionStore from './stores/useRpgProgressionStore';
 import ProgressionSystem from './systems/ProgressionSystem';
 
 function PlayerCharacter({ controllerRef }) {
@@ -30,13 +30,13 @@ function PlayerCharacter({ controllerRef }) {
   );
 }
 
-export default function Rpg2Scene() {
+export default function RpgScene() {
   const controllerRef = useRef();
   const inputRef = useRef({ interact: false });
-  const resetProgression = useRpg2ProgressionStore((state) => state.resetProgression);
+  const resetProgression = useRpgProgressionStore((state) => state.resetProgression);
 
   const trainingStations = useMemo(
-    () => RPG2_TRAINING_STATIONS.map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
+    () => RPG_TRAINING_STATIONS.map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
     []
   );
 
@@ -69,7 +69,7 @@ export default function Rpg2Scene() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    window.__RPG2_SMOKE_TEST__ = {
+    window.__RPG_SMOKE_TEST__ = {
       getPlayerPosition: () => {
         const body = controllerRef.current?.group;
         if (!body) return null;
@@ -84,7 +84,7 @@ export default function Rpg2Scene() {
     };
 
     return () => {
-      delete window.__RPG2_SMOKE_TEST__;
+      delete window.__RPG_SMOKE_TEST__;
     };
   }, []);
 
@@ -96,7 +96,7 @@ export default function Rpg2Scene() {
       <directionalLight castShadow position={[8, 12, 6]} intensity={1.3} shadow-mapSize={[2048, 2048]} />
 
       <Physics timeStep='vary'>
-        <KeyboardControls map={RPG2_KEYBOARD_MAP}>
+        <KeyboardControls map={RPG_KEYBOARD_MAP}>
           <PlayerCharacter controllerRef={controllerRef} />
         </KeyboardControls>
 

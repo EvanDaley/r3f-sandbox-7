@@ -1,15 +1,15 @@
 import { create } from "zustand";
 import ThirdPersonScene1 from "../modules/third_person_scene_1/ThirdPersonScene1";
 import ThirdPersonBlenderIntegrated from "../modules/third_person_blender_integrated/ThirdPersonBlenderIntegrated";
-import Rpg2Scene from "../modules/rpg-2/Rpg2Scene";
+import RpgScene from "../modules/rpg/RpgScene";
 
 const scenes = [
-  { id: "rpg2", name: "RPG Foundation v2", scene: Rpg2Scene },
+  { id: "rpg", name: "RPG Foundation", scene: RpgScene },
   { id: "thirdPersonBlenderIntegrated", name: "Third Person Blender Integrated", scene: ThirdPersonBlenderIntegrated },
   { id: "thirdPersonScene1", name: "Third Person Scene 1", scene: ThirdPersonScene1 },
 ];
 
-let defaultScene = "rpg2";
+let defaultScene = "rpg";
 
 // On the prod version, you can set a different default scene
 // if (window.location.hostname !== "localhost") {

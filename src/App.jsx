@@ -3,7 +3,7 @@ import { EcctrlJoystick } from "@/modules/third_person_controller/EcctrlJoystick
 import { useEffect, useState } from "react";
 import ThreeCanvas from "./modules/ThreeCanvas";
 import useSceneStore from "./stores/sceneStore";
-import Rpg2Hud from "./modules/rpg-2/components/Rpg2Hud";
+import RpgHud from "./modules/rpg/components/RpgHud";
 
 const EcctrlJoystickControls = () => {
   const [isTouchScreen, setIsTouchScreen] = useState(false);
@@ -26,7 +26,7 @@ function App() {
       <Leva hidden />
       <EcctrlJoystickControls />
       <ThreeCanvas />
-      {currentSceneId === "rpg2" && <Rpg2Hud />}
+      {currentSceneId === "rpg" && <RpgHud />}
     </>
   );
 }
