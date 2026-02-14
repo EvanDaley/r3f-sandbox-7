@@ -25,7 +25,7 @@ export const customizationOptions = {
   headwear: [
     {
       id: "hatA",
-      label: "Hat A",
+      label: "Top Hat",
       type: "topHat",
       color: "#1f2937",
       brimScale: [1.15, 0.08, 1.15],
@@ -34,7 +34,7 @@ export const customizationOptions = {
     },
     {
       id: "hatB",
-      label: "Hat B",
+      label: "Beanie",
       type: "beanie",
       color: "#be123c",
       scale: [1.05, 0.62, 1.05],
@@ -42,7 +42,7 @@ export const customizationOptions = {
     },
     {
       id: "hatC",
-      label: "Hat C",
+      label: "Headphones",
       type: "headphones",
       color: "#111827",
       earScale: [0.23, 0.56, 0.18],
@@ -53,7 +53,7 @@ export const customizationOptions = {
   hairStyle: [
     {
       id: "hairA",
-      label: "Hair A",
+      label: "Flat Top",
       type: "flatTop",
       color: "#4b2e1f",
       scale: [0.95, 0.34, 0.95],
@@ -61,7 +61,7 @@ export const customizationOptions = {
     },
     {
       id: "hairB",
-      label: "Hair B",
+      label: "Side Sweep",
       type: "sideSweep",
       color: "#2f2f2f",
       scale: [0.96, 0.25, 0.82],
@@ -72,7 +72,7 @@ export const customizationOptions = {
     },
     {
       id: "hairC",
-      label: "Hair C",
+      label: "Mohawk",
       type: "mohawk",
       color: "#3f2a1b",
       scale: [0.26, 0.44, 1.02],
