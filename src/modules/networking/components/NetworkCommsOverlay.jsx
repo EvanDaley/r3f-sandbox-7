@@ -183,13 +183,14 @@ export default function NetworkCommsOverlay() {
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
-  const activeCallsRef = useRef({});
+  const outboundCallsRef = useRef({});
+  const inboundCallsRef = useRef({});
   const chatScrollRef = useRef(null);
 
   const connectedPeerIds = useMemo(() => Object.keys(activeConnections), [activeConnections]);
 
   const updateOutgoingVideoTrack = useCallback((videoTrack) => {
-    Object.values(activeCallsRef.current).forEach((call) => {
+    Object.values(outboundCallsRef.current).forEach((call) => {
       const sender = call?.peerConnection
         ?.getSenders()
         ?.find((candidate) => candidate.track?.kind === "video");
@@ -202,7 +203,7 @@ export default function NetworkCommsOverlay() {
   }, []);
 
   const updateOutgoingAudioTrack = useCallback((audioTrack) => {
-    Object.values(activeCallsRef.current).forEach((call) => {
+    Object.values(outboundCallsRef.current).forEach((call) => {
       const sender = call?.peerConnection
         ?.getSenders()
         ?.find((candidate) => candidate.track?.kind === "audio");
@@ -219,15 +220,15 @@ export default function NetworkCommsOverlay() {
       if (!peer || !stream) return;
 
       connectedPeerIds.forEach((remotePeerId) => {
-        if (!remotePeerId || remotePeerId === peerId || activeCallsRef.current[remotePeerId]) return;
+        if (!remotePeerId || remotePeerId === peerId || outboundCallsRef.current[remotePeerId]) return;
 
         const call = peer.call(remotePeerId, stream);
-        activeCallsRef.current[remotePeerId] = call;
+        outboundCallsRef.current[remotePeerId] = call;
 
         call.on("stream", (incomingStream) => addRemoteMediaStream(remotePeerId, incomingStream));
 
         const teardown = () => {
-          delete activeCallsRef.current[remotePeerId];
+          delete outboundCallsRef.current[remotePeerId];
           removeRemoteMediaStream(remotePeerId);
         };
 
@@ -355,14 +356,14 @@ export default function NetworkCommsOverlay() {
     const onCall = (call) => {
       const streamToSend = outgoingStream || cameraStream;
       call.answer(streamToSend || undefined);
-      activeCallsRef.current[call.peer] = call;
+      inboundCallsRef.current[call.peer] = call;
 
       call.on("stream", (incomingStream) => {
         addRemoteMediaStream(call.peer, incomingStream);
       });
 
       const teardown = () => {
-        delete activeCallsRef.current[call.peer];
+        delete inboundCallsRef.current[call.peer];
         removeRemoteMediaStream(call.peer);
       };
 
@@ -403,7 +404,8 @@ export default function NetworkCommsOverlay() {
 
   useEffect(() => {
     return () => {
-      Object.values(activeCallsRef.current).forEach((call) => call?.close());
+      Object.values(outboundCallsRef.current).forEach((call) => call?.close());
+      Object.values(inboundCallsRef.current).forEach((call) => call?.close());
       cameraStream?.getTracks().forEach((track) => track.stop());
       screenStream?.getTracks().forEach((track) => track.stop());
     };
