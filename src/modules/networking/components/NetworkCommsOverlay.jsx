@@ -4,8 +4,10 @@ import { useNetworkingStore } from "../stores/useNetworkingStore";
 
 const CHAT_CHANNEL = "chat";
 const CHAT_MESSAGE_TYPE = "text";
-
 const MAX_MESSAGE_LENGTH = 500;
+
+const SOURCE_CAMERA = "camera";
+const SOURCE_SCREEN = "screen";
 
 const getCameraErrorMessage = (error) => {
   if (!error) return "We couldn't access your camera right now.";
@@ -50,16 +52,16 @@ const overlayStyles = {
     position: "fixed",
     left: 12,
     bottom: 68,
-    width: 880,
+    width: 980,
     maxWidth: "calc(100vw - 24px)",
-    height: "min(560px, calc(100vh - 120px))",
+    height: "min(640px, calc(100vh - 120px))",
     zIndex: 55,
     background: "rgba(8, 10, 19, 0.94)",
     border: "1px solid rgba(255,255,255,0.18)",
     borderRadius: 16,
     color: "white",
     display: "grid",
-    gridTemplateColumns: "2fr minmax(260px, 1fr)",
+    gridTemplateColumns: "2fr minmax(280px, 1fr)",
     overflow: "hidden",
     boxShadow: "0 20px 45px rgba(0,0,0,0.45)",
     backdropFilter: "blur(12px)",
@@ -70,13 +72,27 @@ const overlayStyles = {
     minHeight: 0,
     borderRight: "1px solid rgba(255,255,255,0.12)",
   },
+  videoArea: {
+    minHeight: 0,
+    display: "grid",
+    gridTemplateRows: "minmax(0, 2fr) minmax(132px, 1fr)",
+    gap: 10,
+    padding: 12,
+  },
+  featuredTile: {
+    borderRadius: 12,
+    background: "#06070d",
+    overflow: "hidden",
+    border: "1px solid rgba(255,255,255,0.16)",
+    minHeight: 220,
+    position: "relative",
+  },
   videoGrid: {
     minHeight: 0,
     overflow: "auto",
-    padding: 12,
     display: "grid",
     gap: 10,
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
     alignContent: "start",
   },
   tile: {
@@ -84,8 +100,9 @@ const overlayStyles = {
     background: "#07080e",
     overflow: "hidden",
     border: "1px solid rgba(255,255,255,0.12)",
-    minHeight: 140,
+    minHeight: 110,
     position: "relative",
+    cursor: "pointer",
   },
   tileMeta: {
     position: "absolute",
@@ -144,7 +161,7 @@ const overlayStyles = {
   },
 };
 
-function StreamTile({ label, subtitle, stream, muted }) {
+function StreamTile({ label, subtitle, stream, muted, onClick, isActive, style }) {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -153,7 +170,21 @@ function StreamTile({ label, subtitle, stream, muted }) {
   }, [stream]);
 
   return (
-    <div style={overlayStyles.tile}>
+    <div
+      style={{
+        ...overlayStyles.tile,
+        ...(style || {}),
+        border: isActive ? "1px solid rgba(101,149,255,0.9)" : (style?.border || overlayStyles.tile.border),
+      }}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          onClick?.();
+        }
+      }}
+    >
       <video
         ref={videoRef}
         autoPlay
@@ -195,16 +226,17 @@ export default function NetworkCommsOverlay() {
   const addChatMessage = useNetworkingStore((state) => state.addChatMessage);
   const addRemoteMediaStream = useNetworkingStore((state) => state.addRemoteMediaStream);
   const removeRemoteMediaStream = useNetworkingStore((state) => state.removeRemoteMediaStream);
+  const removeRemoteMediaStreamsByPeer = useNetworkingStore((state) => state.removeRemoteMediaStreamsByPeer);
 
   const [isOpen, setIsOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
   const [cameraStream, setCameraStream] = useState(null);
   const [screenStream, setScreenStream] = useState(null);
-  const [outgoingStream, setOutgoingStream] = useState(null);
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [mediaError, setMediaError] = useState("");
+  const [featuredTileId, setFeaturedTileId] = useState(null);
 
   const outboundCallsRef = useRef({});
   const inboundCallsRef = useRef({});
@@ -212,67 +244,7 @@ export default function NetworkCommsOverlay() {
 
   const connectedPeerIds = useMemo(() => Object.keys(activeConnections), [activeConnections]);
 
-  const updateOutgoingVideoTrack = useCallback((videoTrack) => {
-    Object.values(outboundCallsRef.current).forEach((call) => {
-      const sender = call?.peerConnection
-        ?.getSenders()
-        ?.find((candidate) => candidate.track?.kind === "video");
-
-      if (!sender || !videoTrack) return;
-      sender.replaceTrack(videoTrack).catch((error) => {
-        console.error("[network/comms] replaceTrack(video) failed", error);
-      });
-    });
-  }, []);
-
-  const updateOutgoingAudioTrack = useCallback((audioTrack) => {
-    Object.values(outboundCallsRef.current).forEach((call) => {
-      const sender = call?.peerConnection
-        ?.getSenders()
-        ?.find((candidate) => candidate.track?.kind === "audio");
-
-      if (!sender || !audioTrack) return;
-      sender.replaceTrack(audioTrack).catch((error) => {
-        console.error("[network/comms] replaceTrack(audio) failed", error);
-      });
-    });
-  }, []);
-
-  const connectMediaCalls = useCallback(
-    (stream) => {
-      if (!peer || !stream) return;
-
-      connectedPeerIds.forEach((remotePeerId) => {
-        if (!remotePeerId || remotePeerId === peerId || outboundCallsRef.current[remotePeerId]) return;
-
-        let call = null;
-        try {
-          call = peer.call(remotePeerId, stream);
-        } catch (error) {
-          console.error("[network/comms] failed to create outbound call", { remotePeerId, error });
-          return;
-        }
-
-        if (!call || typeof call.on !== "function") {
-          console.warn("[network/comms] outbound call unavailable", { remotePeerId, call });
-          return;
-        }
-
-        outboundCallsRef.current[remotePeerId] = call;
-
-        call.on("stream", (incomingStream) => addRemoteMediaStream(remotePeerId, incomingStream));
-
-        const teardown = () => {
-          delete outboundCallsRef.current[remotePeerId];
-          removeRemoteMediaStream(remotePeerId);
-        };
-
-        call.on("close", teardown);
-        call.on("error", teardown);
-      });
-    },
-    [addRemoteMediaStream, connectedPeerIds, peer, peerId, removeRemoteMediaStream]
-  );
+  const buildCallKey = useCallback((remotePeerId, source) => `${remotePeerId}:${source}`, []);
 
   const ensureCameraAndMic = useCallback(async () => {
     if (cameraStream) return cameraStream;
@@ -297,19 +269,69 @@ export default function NetworkCommsOverlay() {
     }
   }, [cameraStream]);
 
+  const teardownOutboundCall = useCallback((callKey) => {
+    const existingCall = outboundCallsRef.current[callKey];
+    if (!existingCall) return;
+
+    try {
+      existingCall.close();
+    } catch (error) {
+      console.warn("[network/comms] outbound close failed", { callKey, error });
+    }
+
+    delete outboundCallsRef.current[callKey];
+  }, []);
+
+  const connectMediaCallsForSource = useCallback(
+    (stream, source) => {
+      if (!peer || !stream) return;
+
+      connectedPeerIds.forEach((remotePeerId) => {
+        if (!remotePeerId || remotePeerId === peerId) return;
+
+        const callKey = buildCallKey(remotePeerId, source);
+        if (outboundCallsRef.current[callKey]) return;
+
+        let call = null;
+        try {
+          call = peer.call(remotePeerId, stream, { metadata: { source } });
+        } catch (error) {
+          console.error("[network/comms] failed to create outbound call", { remotePeerId, source, error });
+          return;
+        }
+
+        if (!call || typeof call.on !== "function") {
+          console.warn("[network/comms] outbound call unavailable", { remotePeerId, source, call });
+          return;
+        }
+
+        outboundCallsRef.current[callKey] = call;
+
+        call.on("close", () => {
+          delete outboundCallsRef.current[callKey];
+        });
+
+        call.on("error", (error) => {
+          console.error("[network/comms] outbound call error", { remotePeerId, source, error });
+          delete outboundCallsRef.current[callKey];
+        });
+      });
+    },
+    [buildCallKey, connectedPeerIds, peer, peerId]
+  );
+
   const enableDevices = useCallback(async () => {
     try {
       setMediaError("");
       const stream = await ensureCameraAndMic();
       setCameraStream(stream);
-      setOutgoingStream(stream);
-      connectMediaCalls(stream);
+      connectMediaCallsForSource(stream, SOURCE_CAMERA);
     } catch (error) {
       const errorMessage = error?.message || "Could not initialize camera/mic.";
       setMediaError(errorMessage);
       console.error("[network/comms] could not initialize camera/mic", error);
     }
-  }, [connectMediaCalls, ensureCameraAndMic]);
+  }, [connectMediaCallsForSource, ensureCameraAndMic]);
 
   const toggleMic = useCallback(() => {
     if (!cameraStream) return;
@@ -342,14 +364,10 @@ export default function NetworkCommsOverlay() {
     setScreenStream(null);
     setIsScreenSharing(false);
 
-    if (cameraStream) {
-      setOutgoingStream(cameraStream);
-      const cameraVideoTrack = cameraStream.getVideoTracks()[0];
-      if (cameraVideoTrack) {
-        updateOutgoingVideoTrack(cameraVideoTrack);
-      }
-    }
-  }, [cameraStream, screenStream, updateOutgoingVideoTrack]);
+    connectedPeerIds.forEach((remotePeerId) => {
+      teardownOutboundCall(buildCallKey(remotePeerId, SOURCE_SCREEN));
+    });
+  }, [buildCallKey, connectedPeerIds, screenStream, teardownOutboundCall]);
 
   const startScreenShare = useCallback(async () => {
     if (!cameraStream) {
@@ -373,40 +391,37 @@ export default function NetworkCommsOverlay() {
 
       setScreenStream(nextScreenStream);
       setIsScreenSharing(true);
-
-      const baseAudioTrack = (cameraStream || outgoingStream)?.getAudioTracks()[0];
-      const combinedStream = new MediaStream([
-        screenTrack,
-        ...(baseAudioTrack ? [baseAudioTrack] : []),
-      ]);
-
-      setOutgoingStream(combinedStream);
-      connectMediaCalls(combinedStream);
-      updateOutgoingVideoTrack(screenTrack);
-
-      if (baseAudioTrack) {
-        updateOutgoingAudioTrack(baseAudioTrack);
-      }
+      connectMediaCallsForSource(nextScreenStream, SOURCE_SCREEN);
     } catch (error) {
       console.error("[network/comms] screen share denied/unavailable", error);
     }
-  }, [cameraStream, connectMediaCalls, enableDevices, outgoingStream, stopScreenShare, updateOutgoingAudioTrack, updateOutgoingVideoTrack]);
+  }, [cameraStream, connectMediaCallsForSource, enableDevices, stopScreenShare]);
 
   useEffect(() => {
     if (!peer) return undefined;
 
     const onCall = (call) => {
-      const streamToSend = outgoingStream || cameraStream;
-      call.answer(streamToSend || undefined);
-      inboundCallsRef.current[call.peer] = call;
+      const source = call?.metadata?.source || SOURCE_CAMERA;
+      const streamKeyRef = { current: null };
+
+      call.answer();
+      inboundCallsRef.current[`${call.peer}:${call.connectionId || Date.now()}:${source}`] = call;
 
       call.on("stream", (incomingStream) => {
-        addRemoteMediaStream(call.peer, incomingStream);
+        const streamId = `${call.peer}:${source}:${incomingStream.id}`;
+        streamKeyRef.current = streamId;
+        addRemoteMediaStream({
+          streamId,
+          peerId: call.peer,
+          source,
+          stream: incomingStream,
+        });
       });
 
       const teardown = () => {
-        delete inboundCallsRef.current[call.peer];
-        removeRemoteMediaStream(call.peer);
+        if (streamKeyRef.current) {
+          removeRemoteMediaStream(streamKeyRef.current);
+        }
       };
 
       call.on("close", teardown);
@@ -417,12 +432,17 @@ export default function NetworkCommsOverlay() {
     return () => {
       peer.off("call", onCall);
     };
-  }, [addRemoteMediaStream, cameraStream, outgoingStream, peer, removeRemoteMediaStream]);
+  }, [addRemoteMediaStream, peer, removeRemoteMediaStream]);
 
   useEffect(() => {
-    if (!outgoingStream) return;
-    connectMediaCalls(outgoingStream);
-  }, [connectMediaCalls, connectedPeerIds, outgoingStream]);
+    if (!cameraStream) return;
+    connectMediaCallsForSource(cameraStream, SOURCE_CAMERA);
+  }, [cameraStream, connectMediaCallsForSource, connectedPeerIds]);
+
+  useEffect(() => {
+    if (!screenStream) return;
+    connectMediaCallsForSource(screenStream, SOURCE_SCREEN);
+  }, [connectMediaCallsForSource, connectedPeerIds, screenStream]);
 
   useEffect(() => {
     const unsubscribe = subscribeToNetworkMessages((message) => {
@@ -443,6 +463,22 @@ export default function NetworkCommsOverlay() {
     if (!chatScrollRef.current) return;
     chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
   }, [chatMessages.length]);
+
+  useEffect(() => {
+    const connectedSet = new Set(connectedPeerIds);
+    Object.keys(remoteMediaStreams).forEach((streamId) => {
+      const streamEntry = remoteMediaStreams[streamId];
+      if (!streamEntry?.peerId || connectedSet.has(streamEntry.peerId)) return;
+      removeRemoteMediaStreamsByPeer(streamEntry.peerId);
+    });
+  }, [connectedPeerIds, remoteMediaStreams, removeRemoteMediaStreamsByPeer]);
+
+  useEffect(() => {
+    if (!featuredTileId) return;
+    if (!remoteMediaStreams[featuredTileId]) {
+      setFeaturedTileId(null);
+    }
+  }, [featuredTileId, remoteMediaStreams]);
 
   useEffect(() => {
     return () => {
@@ -476,7 +512,17 @@ export default function NetworkCommsOverlay() {
     setPendingMessage("");
   }, [addChatMessage, displayName, peerId, pendingMessage]);
 
-  const localPreviewStream = screenStream || cameraStream || outgoingStream;
+  const remoteTiles = useMemo(
+    () =>
+      Object.entries(remoteMediaStreams).map(([streamId, streamEntry]) => ({
+        streamId,
+        ...streamEntry,
+      })),
+    [remoteMediaStreams]
+  );
+
+  const featuredTile = featuredTileId ? remoteMediaStreams[featuredTileId] : null;
+  const localPreviewStream = screenStream || cameraStream;
 
   return (
     <>
@@ -487,19 +533,46 @@ export default function NetworkCommsOverlay() {
       {isOpen && (
         <div style={overlayStyles.root}>
           <section style={overlayStyles.stage}>
-            <div style={overlayStyles.videoGrid}>
-              {localPreviewStream && (
-                <StreamTile
-                  stream={localPreviewStream}
-                  muted
-                  label="You"
-                  subtitle={isScreenSharing ? "Presenting" : "Camera"}
-                />
-              )}
+            <div style={overlayStyles.videoArea}>
+              <div style={overlayStyles.featuredTile}>
+                {featuredTile ? (
+                  <StreamTile
+                    stream={featuredTile.stream}
+                    muted={false}
+                    label={featuredTile.peerId}
+                    subtitle={featuredTile.source === SOURCE_SCREEN ? "Screen share" : "Camera"}
+                    onClick={() => setFeaturedTileId(null)}
+                    isActive
+                    style={overlayStyles.featuredTile}
+                  />
+                ) : localPreviewStream ? (
+                  <StreamTile
+                    stream={localPreviewStream}
+                    muted
+                    label="You"
+                    subtitle={isScreenSharing ? "Presenting" : "Camera"}
+                    style={overlayStyles.featuredTile}
+                  />
+                ) : (
+                  <div style={{ height: "100%", display: "grid", placeItems: "center", opacity: 0.65, fontSize: 13 }}>
+                    Join with camera/mic to start video
+                  </div>
+                )}
+              </div>
 
-              {Object.entries(remoteMediaStreams).map(([remotePeerId, stream]) => (
-                <StreamTile key={remotePeerId} stream={stream} muted={false} label={remotePeerId} subtitle="Remote" />
-              ))}
+              <div style={overlayStyles.videoGrid}>
+                {remoteTiles.map((tile) => (
+                  <StreamTile
+                    key={tile.streamId}
+                    stream={tile.stream}
+                    muted={false}
+                    label={tile.peerId}
+                    subtitle={tile.source === SOURCE_SCREEN ? "Screen" : "Camera"}
+                    onClick={() => setFeaturedTileId((current) => (current === tile.streamId ? null : tile.streamId))}
+                    isActive={featuredTileId === tile.streamId}
+                  />
+                ))}
+              </div>
             </div>
 
             <div style={overlayStyles.controlsBar}>
@@ -548,7 +621,7 @@ export default function NetworkCommsOverlay() {
             <h3 style={overlayStyles.sectionTitle}>Meeting chat</h3>
             <div style={overlayStyles.participants}>
               <div><strong>Participants</strong>: {connectedPeerIds.length + 1}</div>
-              <div>You: {peerId || "connecting..."}</div>
+              <div>You: {displayName || peerId || "connecting..."}</div>
               {connectedPeerIds.map((id) => (
                 <div key={id}>• {id}</div>
               ))}

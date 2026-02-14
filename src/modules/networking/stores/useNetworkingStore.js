@@ -68,17 +68,32 @@ export const useNetworkingStore = create((set) => ({
         chatMessages: nextMessages.slice(-200),
       };
     }),
-  addRemoteMediaStream: (peerId, stream) =>
+  addRemoteMediaStream: ({ streamId, peerId, source, stream }) =>
     set((state) => ({
       remoteMediaStreams: {
         ...state.remoteMediaStreams,
-        [peerId]: stream,
+        [streamId]: {
+          streamId,
+          peerId,
+          source,
+          stream,
+        },
       },
     })),
-  removeRemoteMediaStream: (peerId) =>
+  removeRemoteMediaStream: (streamId) =>
     set((state) => {
       const nextStreams = { ...state.remoteMediaStreams };
-      delete nextStreams[peerId];
+      delete nextStreams[streamId];
+      return { remoteMediaStreams: nextStreams };
+    }),
+  removeRemoteMediaStreamsByPeer: (peerId) =>
+    set((state) => {
+      const nextStreams = { ...state.remoteMediaStreams };
+      Object.keys(nextStreams).forEach((streamId) => {
+        if (nextStreams[streamId]?.peerId === peerId) {
+          delete nextStreams[streamId];
+        }
+      });
       return { remoteMediaStreams: nextStreams };
     }),
 }));
