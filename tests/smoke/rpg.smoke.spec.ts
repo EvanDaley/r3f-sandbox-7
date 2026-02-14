@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-test('rpg-2 scene boots and player can move', async ({ page }) => {
+test('rpg scene boots and player can move', async ({ page }) => {
   await page.goto('/');
 
   await page.waitForFunction(() => {
-    return typeof (window as Window & { __RPG2_SMOKE_TEST__?: unknown }).__RPG2_SMOKE_TEST__ !== 'undefined';
+    return typeof (window as Window & { __RPG_SMOKE_TEST__?: unknown }).__RPG_SMOKE_TEST__ !== 'undefined';
   });
 
   const before = await page.evaluate(() => {
     const harness = (window as Window & {
-      __RPG2_SMOKE_TEST__?: { getPlayerPosition?: () => { x: number; y: number; z: number } | null };
-    }).__RPG2_SMOKE_TEST__;
+      __RPG_SMOKE_TEST__?: { getPlayerPosition?: () => { x: number; y: number; z: number } | null };
+    }).__RPG_SMOKE_TEST__;
     return harness?.getPlayerPosition?.() ?? null;
   });
 
@@ -22,8 +22,8 @@ test('rpg-2 scene boots and player can move', async ({ page }) => {
 
   const after = await page.evaluate(() => {
     const harness = (window as Window & {
-      __RPG2_SMOKE_TEST__?: { getPlayerPosition?: () => { x: number; y: number; z: number } | null };
-    }).__RPG2_SMOKE_TEST__;
+      __RPG_SMOKE_TEST__?: { getPlayerPosition?: () => { x: number; y: number; z: number } | null };
+    }).__RPG_SMOKE_TEST__;
     return harness?.getPlayerPosition?.() ?? null;
   });
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { applySkillExperience, createProgressionState, progressToNextLevel } from '../core/leveling';
-import { RPG2_SKILLS } from '../config/progressionConfig';
+import { RPG_SKILLS } from '../config/progressionConfig';
 
 const withTotals = (state) => {
   const totals = state.skills.reduce(
@@ -18,7 +18,7 @@ const withTotals = (state) => {
   };
 };
 
-export const createRpg2ProgressionStore = (config) => {
+export const createRpgProgressionStore = (config) => {
   const initialState = withTotals(createProgressionState(config));
 
   return create((set, get) => ({
@@ -57,8 +57,8 @@ export const createRpg2ProgressionStore = (config) => {
   }));
 };
 
-const useRpg2ProgressionStore = createRpg2ProgressionStore({
-  skills: RPG2_SKILLS,
+const useRpgProgressionStore = createRpgProgressionStore({
+  skills: RPG_SKILLS,
   globalCurve: {
     levelCap: 100,
     baseXp: 125,
@@ -66,4 +66,4 @@ const useRpg2ProgressionStore = createRpg2ProgressionStore({
   },
 });
 
-export default useRpg2ProgressionStore;
+export default useRpgProgressionStore;
