@@ -244,6 +244,7 @@ export default function NetworkCommsOverlay() {
   const addChatMessage = useNetworkingStore((state) => state.addChatMessage);
   const addRemoteMediaStream = useNetworkingStore((state) => state.addRemoteMediaStream);
   const removeRemoteMediaStream = useNetworkingStore((state) => state.removeRemoteMediaStream);
+  const removeRemoteMediaStreamIfMatches = useNetworkingStore((state) => state.removeRemoteMediaStreamIfMatches);
   const removeRemoteMediaStreamsByPeer = useNetworkingStore((state) => state.removeRemoteMediaStreamsByPeer);
 
   const [isOpen, setIsOpen] = useState(false);
@@ -337,8 +338,9 @@ export default function NetworkCommsOverlay() {
         peerId: remotePeerId,
         source,
         stream: incomingStream,
+        incomingStreamId: incomingStream.id,
       });
-      return streamId;
+      return { streamId, incomingStreamId: incomingStream.id };
     },
     [addRemoteMediaStream, pushDebugEvent]
   );
@@ -392,7 +394,7 @@ export default function NetworkCommsOverlay() {
           pushDebugEvent("outbound call teardown", { remotePeerId, source, callKey });
           delete outboundCallsRef.current[callKey];
           if (streamKeyRef.current) {
-            removeRemoteMediaStream(streamKeyRef.current);
+            removeRemoteMediaStreamIfMatches(streamKeyRef.current);
           }
         };
 
@@ -403,7 +405,7 @@ export default function NetworkCommsOverlay() {
         });
       });
     },
-    [buildCallKey, connectedPeerIds, peer, peerId, pushDebugEvent, registerIncomingStream, removeRemoteMediaStream]
+    [buildCallKey, connectedPeerIds, peer, peerId, pushDebugEvent, registerIncomingStream, removeRemoteMediaStreamIfMatches]
   );
 
   const enableDevices = useCallback(async () => {
@@ -511,10 +513,10 @@ export default function NetworkCommsOverlay() {
         pushDebugEvent("inbound call teardown", {
           fromPeer: call?.peer,
           source,
-          streamId: streamKeyRef.current,
+          streamRef: streamKeyRef.current,
         });
         if (streamKeyRef.current) {
-          removeRemoteMediaStream(streamKeyRef.current);
+          removeRemoteMediaStreamIfMatches(streamKeyRef.current);
         }
       };
 
@@ -526,7 +528,7 @@ export default function NetworkCommsOverlay() {
     return () => {
       peer.off("call", onCall);
     };
-  }, [cameraStream, peer, pushDebugEvent, registerIncomingStream, removeRemoteMediaStream]);
+  }, [cameraStream, peer, pushDebugEvent, registerIncomingStream, removeRemoteMediaStreamIfMatches]);
 
   useEffect(() => {
     if (!cameraStream) return;
