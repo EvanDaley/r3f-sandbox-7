@@ -282,6 +282,21 @@ export default function NetworkCommsOverlay() {
     delete outboundCallsRef.current[callKey];
   }, []);
 
+  const registerIncomingStream = useCallback(
+    ({ remotePeerId, source, incomingStream }) => {
+      if (!incomingStream) return null;
+      const streamId = `${remotePeerId}:${source}:${incomingStream.id}`;
+      addRemoteMediaStream({
+        streamId,
+        peerId: remotePeerId,
+        source,
+        stream: incomingStream,
+      });
+      return streamId;
+    },
+    [addRemoteMediaStream]
+  );
+
   const connectMediaCallsForSource = useCallback(
     (stream, source) => {
       if (!peer || !stream) return;
@@ -305,19 +320,28 @@ export default function NetworkCommsOverlay() {
           return;
         }
 
+        const streamKeyRef = { current: null };
         outboundCallsRef.current[callKey] = call;
 
-        call.on("close", () => {
-          delete outboundCallsRef.current[callKey];
+        call.on("stream", (incomingStream) => {
+          streamKeyRef.current = registerIncomingStream({ remotePeerId, source, incomingStream });
         });
 
+        const teardown = () => {
+          delete outboundCallsRef.current[callKey];
+          if (streamKeyRef.current) {
+            removeRemoteMediaStream(streamKeyRef.current);
+          }
+        };
+
+        call.on("close", teardown);
         call.on("error", (error) => {
           console.error("[network/comms] outbound call error", { remotePeerId, source, error });
-          delete outboundCallsRef.current[callKey];
+          teardown();
         });
       });
     },
-    [buildCallKey, connectedPeerIds, peer, peerId]
+    [buildCallKey, connectedPeerIds, peer, peerId, registerIncomingStream, removeRemoteMediaStream]
   );
 
   const enableDevices = useCallback(async () => {
@@ -404,17 +428,14 @@ export default function NetworkCommsOverlay() {
       const source = call?.metadata?.source || SOURCE_CAMERA;
       const streamKeyRef = { current: null };
 
-      call.answer();
+      call.answer(cameraStream || undefined);
       inboundCallsRef.current[`${call.peer}:${call.connectionId || Date.now()}:${source}`] = call;
 
       call.on("stream", (incomingStream) => {
-        const streamId = `${call.peer}:${source}:${incomingStream.id}`;
-        streamKeyRef.current = streamId;
-        addRemoteMediaStream({
-          streamId,
-          peerId: call.peer,
+        streamKeyRef.current = registerIncomingStream({
+          remotePeerId: call.peer,
           source,
-          stream: incomingStream,
+          incomingStream,
         });
       });
 
@@ -432,7 +453,7 @@ export default function NetworkCommsOverlay() {
     return () => {
       peer.off("call", onCall);
     };
-  }, [addRemoteMediaStream, peer, removeRemoteMediaStream]);
+  }, [cameraStream, peer, registerIncomingStream, removeRemoteMediaStream]);
 
   useEffect(() => {
     if (!cameraStream) return;
@@ -561,6 +582,11 @@ export default function NetworkCommsOverlay() {
               </div>
 
               <div style={overlayStyles.videoGrid}>
+                {remoteTiles.length === 0 && (
+                  <div style={{ opacity: 0.65, fontSize: 12, padding: "6px 4px" }}>
+                    Remote feeds will appear here when another participant publishes camera/screen.
+                  </div>
+                )}
                 {remoteTiles.map((tile) => (
                   <StreamTile
                     key={tile.streamId}
