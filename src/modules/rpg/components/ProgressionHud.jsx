@@ -1,4 +1,5 @@
 import { Html } from "@react-three/drei";
+import { useMemo } from "react";
 import useRpgProgressionStore from "../stores/useRpgProgressionStore";
 
 const panel = {
@@ -30,13 +31,17 @@ export default function ProgressionHud() {
   const totalLevel = useRpgProgressionStore((state) => state.totalLevel);
   const totalXp = useRpgProgressionStore((state) => state.totalXp);
   const lastAction = useRpgProgressionStore((state) => state.lastAction);
+  const portal = useMemo(
+    () => (typeof document !== "undefined" ? { current: document.body } : undefined),
+    []
+  );
 
   return (
-    <Html fullscreen>
+    <Html fullscreen portal={portal} style={{ pointerEvents: "none" }}>
       <div style={{ position: "absolute", top: 16, left: 16, ...panel }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
           <strong>RPG Progression Demo</strong>
-          <span>Lvl Σ {totalLevel}</span>
+          <span>Lvl Sum {totalLevel}</span>
         </div>
         <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>Total XP: {Math.floor(totalXp)}</div>
 
@@ -46,7 +51,7 @@ export default function ProgressionHud() {
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
                 <span>{skill.name}</span>
                 <span>
-                  Lv {skill.level} · {Math.floor(skill.xp)} XP
+                  Lv {skill.level} - {Math.floor(skill.xp)} XP
                 </span>
               </div>
               <ProgressBar color={skill.color ?? "#7c3aed"} value={skill.progress.percentage} />

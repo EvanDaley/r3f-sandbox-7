@@ -1,7 +1,10 @@
-import { OrbitControls } from "@react-three/drei";
+import { KeyboardControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
+import { Physics, RigidBody } from "@react-three/rapier";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import CharacterModel from "../third_person_blender_integrated/CharacterModel";
+import Ecctrl from "../third_person_controller/Ecctrl";
 import ProgressionHud from "./components/ProgressionHud";
 import useRpgProgressionStore from "./stores/useRpgProgressionStore";
 
@@ -12,9 +15,22 @@ const TRAINING_STATIONS = [
   { id: "combatDummy", skillId: "combat", name: "Training Dummy", xp: 18, position: [-4, 0.9, 3], color: "#ef476f" },
 ];
 
-const MOVEMENT_SPEED = 4.2;
 const INTERACTION_RANGE = 2.2;
 const ACTION_COOLDOWN = 0.45;
+const RUNNING_XP_PER_SECOND = 5.5;
+const MIN_RUNNING_SPEED = 0.25;
+const KEYBOARD_MAP = [
+  { name: "forward", keys: ["ArrowUp", "KeyW"] },
+  { name: "backward", keys: ["ArrowDown", "KeyS"] },
+  { name: "leftward", keys: ["ArrowLeft", "KeyA"] },
+  { name: "rightward", keys: ["ArrowRight", "KeyD"] },
+  { name: "jump", keys: ["Space"] },
+  { name: "run", keys: ["Shift"] },
+  { name: "action1", keys: ["1"] },
+  { name: "action2", keys: ["2"] },
+  { name: "action3", keys: ["3"] },
+  { name: "action4", keys: ["KeyF"] },
+];
 
 const useKeyboard = () => {
   const [pressed, setPressed] = useState({});
@@ -48,17 +64,76 @@ const TrainingStation = ({ station }) => (
   </group>
 );
 
-export default function RpgProgressionDemoScene() {
-  const avatarRef = useRef();
+function ProgressionTracker({ controllerRef, trainingStations, keys }) {
   const lastActionAt = useRef(0);
+  const addExperience = useRpgProgressionStore((state) => state.addExperience);
+
+  const playerPosition = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame((_, delta) => {
+    const rigidBody = controllerRef.current?.group;
+    if (!rigidBody) {
+      return;
+    }
+
+    const translation = rigidBody.translation();
+    playerPosition.set(translation.x, translation.y, translation.z);
+
+    const velocity = rigidBody.linvel();
+    const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+
+    if (horizontalSpeed > MIN_RUNNING_SPEED) {
+      addExperience("running", delta * RUNNING_XP_PER_SECOND, "movement");
+    }
+
+    const canInteract = keys.KeyE && performance.now() - lastActionAt.current > ACTION_COOLDOWN * 1000;
+
+    if (!canInteract) {
+      return;
+    }
+
+    const nearestStation = trainingStations.find(
+      (station) => playerPosition.distanceTo(station.vector) <= INTERACTION_RANGE
+    );
+
+    if (!nearestStation) {
+      return;
+    }
+
+    addExperience(nearestStation.skillId, nearestStation.xp, nearestStation.name);
+    lastActionAt.current = performance.now();
+  });
+
+  return null;
+}
+
+function PlayerCharacter({ controllerRef }) {
+  return (
+    <Ecctrl
+      animated
+      springK={2}
+      dampingC={0.2}
+      autoBalanceSpringK={1.2}
+      autoBalanceDampingC={0.04}
+      autoBalanceSpringOnY={0.7}
+      autoBalanceDampingOnY={0.05}
+      position={[0, 1.5, 0]}
+      ref={controllerRef}
+    >
+      <CharacterModel />
+    </Ecctrl>
+  );
+}
+
+export default function RpgProgressionDemoScene() {
+  const controllerRef = useRef();
+  const keys = useKeyboard();
+  const resetProgression = useRpgProgressionStore((state) => state.resetProgression);
+
   const trainingStations = useMemo(
     () => TRAINING_STATIONS.map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
     []
   );
-
-  const keys = useKeyboard();
-  const addExperience = useRpgProgressionStore((state) => state.addExperience);
-  const resetProgression = useRpgProgressionStore((state) => state.resetProgression);
 
   useEffect(() => {
     const onReset = (event) => {
@@ -70,42 +145,6 @@ export default function RpgProgressionDemoScene() {
     window.addEventListener("keydown", onReset);
     return () => window.removeEventListener("keydown", onReset);
   }, [resetProgression]);
-
-  useFrame((_, delta) => {
-    if (!avatarRef.current) {
-      return;
-    }
-
-    const horizontal = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-    const vertical = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0);
-    const movement = new THREE.Vector3(horizontal, 0, vertical);
-
-    if (movement.lengthSq() > 0) {
-      movement.normalize().multiplyScalar(MOVEMENT_SPEED * delta);
-      avatarRef.current.position.add(movement);
-      avatarRef.current.position.x = THREE.MathUtils.clamp(avatarRef.current.position.x, -9, 9);
-      avatarRef.current.position.z = THREE.MathUtils.clamp(avatarRef.current.position.z, -9, 9);
-      addExperience("running", delta * 5.5, "movement");
-    }
-
-    const canInteract = keys.KeyE && performance.now() - lastActionAt.current > ACTION_COOLDOWN * 1000;
-
-    if (!canInteract) {
-      return;
-    }
-
-    const avatarPosition = avatarRef.current.position;
-    const nearestStation = trainingStations.find(
-      (station) => avatarPosition.distanceTo(station.vector) <= INTERACTION_RANGE
-    );
-
-    if (!nearestStation) {
-      return;
-    }
-
-    addExperience(nearestStation.skillId, nearestStation.xp, nearestStation.name);
-    lastActionAt.current = performance.now();
-  });
 
   return (
     <>
@@ -119,21 +158,25 @@ export default function RpgProgressionDemoScene() {
         shadow-mapSize={[2048, 2048]}
       />
 
-      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[30, 30]} />
-        <meshStandardMaterial color="#202737" roughness={0.95} metalness={0.1} />
-      </mesh>
+      <Physics timeStep="vary">
+        <KeyboardControls map={KEYBOARD_MAP}>
+          <PlayerCharacter controllerRef={controllerRef} />
+        </KeyboardControls>
 
-      {trainingStations.map((station) => (
-        <TrainingStation key={station.id} station={station} />
-      ))}
+        <ProgressionTracker controllerRef={controllerRef} trainingStations={trainingStations} keys={keys} />
 
-      <mesh ref={avatarRef} position={[0, 0.7, 0]} castShadow>
-        <capsuleGeometry args={[0.36, 0.7, 8, 12]} />
-        <meshStandardMaterial color="#80ed99" emissive="#0f5132" emissiveIntensity={0.2} />
-      </mesh>
+        <RigidBody type="fixed" colliders="cuboid" position={[0, -0.15, 0]}>
+          <mesh receiveShadow>
+            <boxGeometry args={[30, 0.3, 30]} />
+            <meshStandardMaterial color="#202737" roughness={0.95} metalness={0.1} />
+          </mesh>
+        </RigidBody>
 
-      <OrbitControls makeDefault target={[0, 0.9, 0]} maxPolarAngle={Math.PI / 2.1} minDistance={7} maxDistance={22} />
+        {trainingStations.map((station) => (
+          <TrainingStation key={station.id} station={station} />
+        ))}
+      </Physics>
+
       <ProgressionHud />
     </>
   );

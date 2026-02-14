@@ -21,7 +21,10 @@ export default function ThreeCanvas() {
           }}
           onPointerDown={(e) => {
             if (e.pointerType === "mouse") {
-              e.target.requestPointerLock();
+              const canvas = e.gl.domElement;
+              if (document.pointerLockElement !== canvas) {
+                canvas.requestPointerLock();
+              }
             }
           }}
         >
