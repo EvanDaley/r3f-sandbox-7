@@ -6,6 +6,7 @@ import CharacterModel from '../third_person_blender_integrated/CharacterModel';
 import Ecctrl from '../third_person_controller/Ecctrl';
 import TrainingStation from './components/TrainingStation';
 import { RPG_KEYBOARD_MAP, RPG_TRAINING_STATIONS } from './config/progressionConfig';
+import useNearbyInteractables from './hooks/useNearbyInteractables';
 import useRpgProgressionStore from './stores/useRpgProgressionStore';
 import ProgressionSystem from './systems/ProgressionSystem';
 
@@ -39,6 +40,11 @@ export default function RpgScene() {
     () => RPG_TRAINING_STATIONS.map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
     []
   );
+
+  const nearbyInteractableIds = useNearbyInteractables({
+    controllerRef,
+    interactables: trainingStations,
+  });
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -104,6 +110,7 @@ export default function RpgScene() {
           controllerRef={controllerRef}
           trainingStations={trainingStations}
           inputRef={inputRef}
+          nearbyInteractableIds={nearbyInteractableIds}
         />
 
         <RigidBody type='fixed' colliders='cuboid' position={[0, -0.15, 0]}>
@@ -114,7 +121,11 @@ export default function RpgScene() {
         </RigidBody>
 
         {trainingStations.map((station) => (
-          <TrainingStation key={station.id} station={station} />
+          <TrainingStation
+            key={station.id}
+            station={station}
+            showInteractPrompt={nearbyInteractableIds.has(station.id)}
+          />
         ))}
       </Physics>
     </>

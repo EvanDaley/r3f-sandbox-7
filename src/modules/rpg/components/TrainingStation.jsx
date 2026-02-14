@@ -1,4 +1,6 @@
-export default function TrainingStation({ station }) {
+import { Text } from '@react-three/drei';
+
+export default function TrainingStation({ station, showInteractPrompt }) {
   return (
     <group position={station.position}>
       <mesh castShadow receiveShadow>
@@ -9,6 +11,20 @@ export default function TrainingStation({ station }) {
         <sphereGeometry args={[0.32, 20, 20]} />
         <meshStandardMaterial color={station.color} emissive={station.color} emissiveIntensity={0.28} />
       </mesh>
+
+      {showInteractPrompt && (
+        <Text
+          position={[0, 2.15, 0]}
+          fontSize={0.25}
+          color='#f8fafc'
+          anchorX='center'
+          anchorY='middle'
+          outlineWidth={0.03}
+          outlineColor='#090b13'
+        >
+          {`[E] {${station.name}}`}
+        </Text>
+      )}
     </group>
   );
 }
