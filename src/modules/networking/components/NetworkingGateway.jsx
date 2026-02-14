@@ -5,12 +5,10 @@ import { useNetworkingStore } from "../stores/useNetworkingStore";
 
 export default function NetworkingGateway() {
   const { isLocalhost, bootstrapLocalhost, bootstrapHosted } = useNetworkingBootstrap();
-  const { hasCompletedHostedNameFlow, status, peerId, role } = useNetworkingStore((state) => ({
-    hasCompletedHostedNameFlow: state.hasCompletedHostedNameFlow,
-    status: state.status,
-    peerId: state.peerId,
-    role: state.role,
-  }));
+  const hasCompletedHostedNameFlow = useNetworkingStore((state) => state.hasCompletedHostedNameFlow);
+  const status = useNetworkingStore((state) => state.status);
+  const peerId = useNetworkingStore((state) => state.peerId);
+  const role = useNetworkingStore((state) => state.role);
 
   useEffect(() => {
     if (!isLocalhost) return;

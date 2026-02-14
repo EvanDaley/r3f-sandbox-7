@@ -8,66 +8,73 @@ const isLocalhostEnvironment = () => {
   return host === "localhost" || host === "127.0.0.1";
 };
 
-const setupConnectionLifecycle = (connection, store) => {
+const setupConnectionLifecycle = (connection, actions) => {
   connection.on("open", () => {
-    store.addConnection(connection);
-    store.setStatus("connected");
+    actions.addConnection(connection);
+    actions.setStatus("connected");
   });
 
   connection.on("close", () => {
-    store.removeConnection(connection.peer);
+    actions.removeConnection(connection.peer);
   });
 
   connection.on("error", (error) => {
-    store.addError(error);
-    store.setStatus("error");
+    actions.addError(error);
+    actions.setStatus("error");
   });
 };
 
 export const useNetworkingBootstrap = () => {
-  const store = useNetworkingStore();
+  const peer = useNetworkingStore((state) => state.peer);
+  const setPeer = useNetworkingStore((state) => state.setPeer);
+  const setIdentity = useNetworkingStore((state) => state.setIdentity);
+  const setStatus = useNetworkingStore((state) => state.setStatus);
+  const setHostedNameFlowComplete = useNetworkingStore((state) => state.setHostedNameFlowComplete);
+  const addConnection = useNetworkingStore((state) => state.addConnection);
+  const removeConnection = useNetworkingStore((state) => state.removeConnection);
+  const addError = useNetworkingStore((state) => state.addError);
 
   const onOpen = useCallback(
     ({ openedPeerId, role, hostId, displayName }) => {
-      store.setIdentity({ peerId: openedPeerId, role, hostId, displayName });
-      store.setStatus("ready");
+      setIdentity({ peerId: openedPeerId, role, hostId, displayName });
+      setStatus("ready");
     },
-    [store]
+    [setIdentity, setStatus]
   );
 
   const onConnection = useCallback(
     (connection) => {
-      setupConnectionLifecycle(connection, store);
+      setupConnectionLifecycle(connection, { addConnection, removeConnection, addError, setStatus });
     },
-    [store]
+    [addConnection, removeConnection, addError, setStatus]
   );
 
   const onError = useCallback(
     (error) => {
-      store.addError(error);
-      store.setStatus("error");
+      addError(error);
+      setStatus("error");
     },
-    [store]
+    [addError, setStatus]
   );
 
   const bootstrapLocalhost = useCallback(async () => {
-    if (store.peer) return store.peer;
+    if (peer) return peer;
 
-    const { peer } = await initLocalhostPeer({ onOpen, onConnection, onError });
-    store.setPeer(peer);
-    return peer;
-  }, [onConnection, onError, onOpen, store]);
+    const { peer: initializedPeer } = await initLocalhostPeer({ onOpen, onConnection, onError });
+    setPeer(initializedPeer);
+    return initializedPeer;
+  }, [peer, onConnection, onError, onOpen, setPeer]);
 
   const bootstrapHosted = useCallback(
     async (displayName) => {
-      if (store.peer) return store.peer;
+      if (peer) return peer;
 
-      const { peer } = await initHostedPeer({ displayName, onOpen, onConnection, onError });
-      store.setPeer(peer);
-      store.setHostedNameFlowComplete(true);
-      return peer;
+      const { peer: initializedPeer } = await initHostedPeer({ displayName, onOpen, onConnection, onError });
+      setPeer(initializedPeer);
+      setHostedNameFlowComplete(true);
+      return initializedPeer;
     },
-    [onConnection, onError, onOpen, store]
+    [peer, onConnection, onError, onOpen, setPeer, setHostedNameFlowComplete]
   );
 
   return {
