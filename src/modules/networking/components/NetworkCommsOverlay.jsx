@@ -26,8 +26,8 @@ const overlayStyles = {
   },
   root: {
     position: "fixed",
-    right: 12,
-    top: 92,
+    left: 12,
+    bottom: 68,
     width: 880,
     maxWidth: "calc(100vw - 24px)",
     height: "min(560px, calc(100vh - 120px))",
