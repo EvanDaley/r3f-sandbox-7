@@ -118,7 +118,7 @@ export default function RpgScene() {
           <TrainingStation key={station.id} station={station} />
         ))}
 
-        <NetworkColorBox />
+        {/* <NetworkColorBox /> */}
       </Physics>
     </>
   );
