@@ -5,6 +5,7 @@ import ThreeCanvas from "./modules/ThreeCanvas";
 import useSceneStore from "./stores/sceneStore";
 import RpgHud from "./modules/rpg/components/RpgHud";
 import NetworkingGateway from "./modules/networking/components/NetworkingGateway";
+import NetworkCommsOverlay from "./modules/networking/components/NetworkCommsOverlay";
 
 const EcctrlJoystickControls = () => {
   const [isTouchScreen, setIsTouchScreen] = useState(false);
@@ -28,6 +29,7 @@ function App() {
       <EcctrlJoystickControls />
       <ThreeCanvas />
       <NetworkingGateway />
+      <NetworkCommsOverlay />
       {currentSceneId === "rpg" && <RpgHud />}
     </>
   );
