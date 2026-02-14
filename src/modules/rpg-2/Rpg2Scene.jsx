@@ -66,6 +66,28 @@ export default function Rpg2Scene() {
     };
   }, [resetProgression]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    window.__RPG2_SMOKE_TEST__ = {
+      getPlayerPosition: () => {
+        const body = controllerRef.current?.group;
+        if (!body) return null;
+
+        const translation = body.translation();
+        return {
+          x: translation.x,
+          y: translation.y,
+          z: translation.z,
+        };
+      },
+    };
+
+    return () => {
+      delete window.__RPG2_SMOKE_TEST__;
+    };
+  }, []);
+
   return (
     <>
       <color attach='background' args={['#11131a']} />
