@@ -66,6 +66,7 @@
     "preview": "vite preview",
     "deploy": "gh-pages -d dist-example",
     "ship": "npm run build:example && npm run deploy",
-    "test:smoke": "playwright test"
+    "test:smoke": "playwright test",
+    "postinstall": "npx playwright install --with-deps"
   }
 }
