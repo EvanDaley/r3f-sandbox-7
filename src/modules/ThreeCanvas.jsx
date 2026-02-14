@@ -1,5 +1,5 @@
 import { Canvas } from "@react-three/fiber";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import React from "react";
 import { Bvh } from "@react-three/drei";
 import useSceneStore from "../stores/sceneStore";
@@ -8,6 +8,18 @@ export default function ThreeCanvas() {
   const SceneComponent = useSceneStore(
     (state) => state.scenes.find((s) => s.id === state.currentSceneId)?.scene
   );
+
+
+  useEffect(() => {
+    const onMouseUp = (event) => {
+      if (event.button === 1 && document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+    };
+
+    window.addEventListener("mouseup", onMouseUp);
+    return () => window.removeEventListener("mouseup", onMouseUp);
+  }, []);
 
   return (
     <>
@@ -27,11 +39,18 @@ export default function ThreeCanvas() {
               }
             }
           }}
+          onPointerUp={(e) => {
+            if (
+              e.pointerType === "mouse" &&
+              e.button === 1 &&
+              document.pointerLockElement === e.gl.domElement
+            ) {
+              document.exitPointerLock();
+            }
+          }}
         >
           <Suspense fallback={null}>
-            <Bvh firstHitOnly>
-              {React.createElement(SceneComponent)}
-            </Bvh>
+            <Bvh firstHitOnly>{React.createElement(SceneComponent)}</Bvh>
           </Suspense>
         </Canvas>
       )}
