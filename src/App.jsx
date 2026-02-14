@@ -23,7 +23,7 @@ function App() {
 
   return (
     <>
-      <Leva collapsed />
+      <Leva hidden />
       <EcctrlJoystickControls />
       <ThreeCanvas />
       {currentSceneId === "rpg2" && <Rpg2Hud />}
