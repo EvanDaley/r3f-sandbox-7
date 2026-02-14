@@ -5,6 +5,7 @@ import ThreeCanvas from "./modules/ThreeCanvas";
 import useSceneStore from "./stores/sceneStore";
 import RpgHud from "./modules/rpg/components/RpgHud";
 import NetworkingGateway from "./modules/networking/components/NetworkingGateway";
+import CharacterCustomizerPanel from "./modules/character_customizer/components/CharacterCustomizerPanel";
 
 const EcctrlJoystickControls = () => {
   const [isTouchScreen, setIsTouchScreen] = useState(false);
@@ -29,6 +30,7 @@ function App() {
       <ThreeCanvas />
       <NetworkingGateway />
       {currentSceneId === "rpg" && <RpgHud />}
+      {currentSceneId === "characterCustomizer" && <CharacterCustomizerPanel />}
     </>
   );
 }
