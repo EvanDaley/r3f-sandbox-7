@@ -166,8 +166,26 @@ function StreamTile({ label, subtitle, stream, muted, onClick, isActive, style }
 
   useEffect(() => {
     if (!videoRef.current) return;
-    videoRef.current.srcObject = stream;
-  }, [stream]);
+
+    const videoElement = videoRef.current;
+    videoElement.srcObject = stream;
+
+    const attemptPlay = () => {
+      const maybePromise = videoElement.play?.();
+      if (maybePromise && typeof maybePromise.catch === "function") {
+        maybePromise.catch((error) => {
+          console.warn("[network/comms] video play interrupted", { label, subtitle, error });
+        });
+      }
+    };
+
+    videoElement.onloadedmetadata = attemptPlay;
+    attemptPlay();
+
+    return () => {
+      videoElement.onloadedmetadata = null;
+    };
+  }, [label, stream, subtitle]);
 
   return (
     <div
@@ -299,13 +317,20 @@ export default function NetworkCommsOverlay() {
   const registerIncomingStream = useCallback(
     ({ remotePeerId, source, incomingStream }) => {
       if (!incomingStream) return null;
-      const streamId = `${remotePeerId}:${source}:${incomingStream.id}`;
+      const streamId = `${remotePeerId}:${source}`;
       pushDebugEvent("remote stream registered", {
         remotePeerId,
         source,
         streamId,
+        incomingStreamId: incomingStream.id,
         audioTracks: incomingStream.getAudioTracks().length,
         videoTracks: incomingStream.getVideoTracks().length,
+        videoTrackStates: incomingStream.getVideoTracks().map((track) => ({
+          id: track.id,
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+        })),
       });
       addRemoteMediaStream({
         streamId,
@@ -595,10 +620,16 @@ export default function NetworkCommsOverlay() {
 
   const remoteTiles = useMemo(
     () =>
-      Object.entries(remoteMediaStreams).map(([streamId, streamEntry]) => ({
-        streamId,
-        ...streamEntry,
-      })),
+      Object.entries(remoteMediaStreams)
+        .map(([streamId, streamEntry]) => ({
+          streamId,
+          ...streamEntry,
+        }))
+        .sort((a, b) => {
+          if (a.peerId !== b.peerId) return a.peerId.localeCompare(b.peerId);
+          if (a.source === b.source) return 0;
+          return a.source === SOURCE_CAMERA ? -1 : 1;
+        }),
     [remoteMediaStreams]
   );
 
