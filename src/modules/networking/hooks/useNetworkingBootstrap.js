@@ -13,6 +13,10 @@ const isLocalhostEnvironment = () => {
   return host === "localhost" || host === "127.0.0.1";
 };
 
+
+let localhostBootstrapPromise = null;
+let hostedBootstrapPromise = null;
+
 const setupConnectionLifecycle = (connection, actions) => {
   log("setup connection lifecycle", { peer: connection.peer });
 
@@ -45,6 +49,7 @@ export const useNetworkingBootstrap = () => {
   const setIdentity = useNetworkingStore((state) => state.setIdentity);
   const setStatus = useNetworkingStore((state) => state.setStatus);
   const setHostedNameFlowComplete = useNetworkingStore((state) => state.setHostedNameFlowComplete);
+  const status = useNetworkingStore((state) => state.status);
   const addConnection = useNetworkingStore((state) => state.addConnection);
   const removeConnection = useNetworkingStore((state) => state.removeConnection);
   const addError = useNetworkingStore((state) => state.addError);
@@ -80,12 +85,26 @@ export const useNetworkingBootstrap = () => {
       return peer;
     }
 
+    if (status === "connecting" && localhostBootstrapPromise) {
+      log("localhost bootstrap awaiting in-flight init");
+      return localhostBootstrapPromise;
+    }
+
     log("localhost bootstrap start");
-    const { peer: initializedPeer } = await initLocalhostPeer({ onOpen, onConnection, onError });
-    setPeer(initializedPeer);
-    log("localhost bootstrap complete");
-    return initializedPeer;
-  }, [peer, onConnection, onError, onOpen, setPeer]);
+    setStatus("connecting");
+
+    localhostBootstrapPromise = initLocalhostPeer({ onOpen, onConnection, onError })
+      .then(({ peer: initializedPeer }) => {
+        setPeer(initializedPeer);
+        log("localhost bootstrap complete");
+        return initializedPeer;
+      })
+      .finally(() => {
+        localhostBootstrapPromise = null;
+      });
+
+    return localhostBootstrapPromise;
+  }, [peer, status, onConnection, onError, onOpen, setPeer, setStatus]);
 
   const bootstrapHosted = useCallback(
     async (displayName) => {
@@ -94,14 +113,28 @@ export const useNetworkingBootstrap = () => {
         return peer;
       }
 
+      if (status === "connecting" && hostedBootstrapPromise) {
+        log("hosted bootstrap awaiting in-flight init", { displayName });
+        return hostedBootstrapPromise;
+      }
+
       log("hosted bootstrap start", { displayName });
-      const { peer: initializedPeer } = await initHostedPeer({ displayName, onOpen, onConnection, onError });
-      setPeer(initializedPeer);
-      setHostedNameFlowComplete(true);
-      log("hosted bootstrap complete", { displayName });
-      return initializedPeer;
+      setStatus("connecting");
+
+      hostedBootstrapPromise = initHostedPeer({ displayName, onOpen, onConnection, onError })
+        .then(({ peer: initializedPeer }) => {
+          setPeer(initializedPeer);
+          setHostedNameFlowComplete(true);
+          log("hosted bootstrap complete", { displayName });
+          return initializedPeer;
+        })
+        .finally(() => {
+          hostedBootstrapPromise = null;
+        });
+
+      return hostedBootstrapPromise;
     },
-    [peer, onConnection, onError, onOpen, setPeer, setHostedNameFlowComplete]
+    [peer, status, onConnection, onError, onOpen, setPeer, setHostedNameFlowComplete, setStatus]
   );
 
   return {
