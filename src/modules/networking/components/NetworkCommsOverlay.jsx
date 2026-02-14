@@ -245,7 +245,19 @@ export default function NetworkCommsOverlay() {
       connectedPeerIds.forEach((remotePeerId) => {
         if (!remotePeerId || remotePeerId === peerId || outboundCallsRef.current[remotePeerId]) return;
 
-        const call = peer.call(remotePeerId, stream);
+        let call = null;
+        try {
+          call = peer.call(remotePeerId, stream);
+        } catch (error) {
+          console.error("[network/comms] failed to create outbound call", { remotePeerId, error });
+          return;
+        }
+
+        if (!call || typeof call.on !== "function") {
+          console.warn("[network/comms] outbound call unavailable", { remotePeerId, call });
+          return;
+        }
+
         outboundCallsRef.current[remotePeerId] = call;
 
         call.on("stream", (incomingStream) => addRemoteMediaStream(remotePeerId, incomingStream));
