@@ -237,6 +237,7 @@ export default function NetworkCommsOverlay() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [featuredTileId, setFeaturedTileId] = useState(null);
+  const [debugEvents, setDebugEvents] = useState([]);
 
   const outboundCallsRef = useRef({});
   const inboundCallsRef = useRef({});
@@ -245,6 +246,19 @@ export default function NetworkCommsOverlay() {
   const connectedPeerIds = useMemo(() => Object.keys(activeConnections), [activeConnections]);
 
   const buildCallKey = useCallback((remotePeerId, source) => `${remotePeerId}:${source}`, []);
+
+
+  const pushDebugEvent = useCallback((label, details = {}) => {
+    const entry = {
+      id: Date.now() + Math.random(),
+      label,
+      details,
+      timestamp: new Date().toISOString().slice(11, 19),
+    };
+
+    setDebugEvents((current) => [...current.slice(-24), entry]);
+    console.log("[network/comms][debug]", label, details);
+  }, []);
 
   const ensureCameraAndMic = useCallback(async () => {
     if (cameraStream) return cameraStream;
@@ -286,6 +300,13 @@ export default function NetworkCommsOverlay() {
     ({ remotePeerId, source, incomingStream }) => {
       if (!incomingStream) return null;
       const streamId = `${remotePeerId}:${source}:${incomingStream.id}`;
+      pushDebugEvent("remote stream registered", {
+        remotePeerId,
+        source,
+        streamId,
+        audioTracks: incomingStream.getAudioTracks().length,
+        videoTracks: incomingStream.getVideoTracks().length,
+      });
       addRemoteMediaStream({
         streamId,
         peerId: remotePeerId,
@@ -294,7 +315,7 @@ export default function NetworkCommsOverlay() {
       });
       return streamId;
     },
-    [addRemoteMediaStream]
+    [addRemoteMediaStream, pushDebugEvent]
   );
 
   const connectMediaCallsForSource = useCallback(
@@ -307,6 +328,14 @@ export default function NetworkCommsOverlay() {
         const callKey = buildCallKey(remotePeerId, source);
         if (outboundCallsRef.current[callKey]) return;
 
+        pushDebugEvent("outbound calling peer", {
+          remotePeerId,
+          source,
+          streamId: stream.id,
+          audioTracks: stream.getAudioTracks().length,
+          videoTracks: stream.getVideoTracks().length,
+        });
+
         let call = null;
         try {
           call = peer.call(remotePeerId, stream, { metadata: { source } });
@@ -316,18 +345,26 @@ export default function NetworkCommsOverlay() {
         }
 
         if (!call || typeof call.on !== "function") {
+          pushDebugEvent("outbound call unavailable", {
+            remotePeerId,
+            source,
+            hasCallObject: !!call,
+            callType: typeof call,
+          });
           console.warn("[network/comms] outbound call unavailable", { remotePeerId, source, call });
           return;
         }
 
         const streamKeyRef = { current: null };
         outboundCallsRef.current[callKey] = call;
+        pushDebugEvent("outbound call created", { remotePeerId, source, callKey });
 
         call.on("stream", (incomingStream) => {
           streamKeyRef.current = registerIncomingStream({ remotePeerId, source, incomingStream });
         });
 
         const teardown = () => {
+          pushDebugEvent("outbound call teardown", { remotePeerId, source, callKey });
           delete outboundCallsRef.current[callKey];
           if (streamKeyRef.current) {
             removeRemoteMediaStream(streamKeyRef.current);
@@ -341,7 +378,7 @@ export default function NetworkCommsOverlay() {
         });
       });
     },
-    [buildCallKey, connectedPeerIds, peer, peerId, registerIncomingStream, removeRemoteMediaStream]
+    [buildCallKey, connectedPeerIds, peer, peerId, pushDebugEvent, registerIncomingStream, removeRemoteMediaStream]
   );
 
   const enableDevices = useCallback(async () => {
@@ -428,6 +465,12 @@ export default function NetworkCommsOverlay() {
       const source = call?.metadata?.source || SOURCE_CAMERA;
       const streamKeyRef = { current: null };
 
+      pushDebugEvent("inbound call received", {
+        fromPeer: call?.peer,
+        source,
+        hasCameraStream: !!cameraStream,
+      });
+
       call.answer(cameraStream || undefined);
       inboundCallsRef.current[`${call.peer}:${call.connectionId || Date.now()}:${source}`] = call;
 
@@ -440,6 +483,11 @@ export default function NetworkCommsOverlay() {
       });
 
       const teardown = () => {
+        pushDebugEvent("inbound call teardown", {
+          fromPeer: call?.peer,
+          source,
+          streamId: streamKeyRef.current,
+        });
         if (streamKeyRef.current) {
           removeRemoteMediaStream(streamKeyRef.current);
         }
@@ -453,7 +501,7 @@ export default function NetworkCommsOverlay() {
     return () => {
       peer.off("call", onCall);
     };
-  }, [cameraStream, peer, registerIncomingStream, removeRemoteMediaStream]);
+  }, [cameraStream, peer, pushDebugEvent, registerIncomingStream, removeRemoteMediaStream]);
 
   useEffect(() => {
     if (!cameraStream) return;
@@ -464,6 +512,18 @@ export default function NetworkCommsOverlay() {
     if (!screenStream) return;
     connectMediaCallsForSource(screenStream, SOURCE_SCREEN);
   }, [connectMediaCallsForSource, connectedPeerIds, screenStream]);
+
+
+  useEffect(() => {
+    pushDebugEvent("connection snapshot", {
+      selfPeerId: peerId,
+      connectedPeerIds,
+      remoteStreamCount: Object.keys(remoteMediaStreams).length,
+      hasCameraStream: !!cameraStream,
+      hasScreenStream: !!screenStream,
+      peerReady: !!peer,
+    });
+  }, [cameraStream, connectedPeerIds, peer, peerId, pushDebugEvent, remoteMediaStreams, screenStream]);
 
   useEffect(() => {
     const unsubscribe = subscribeToNetworkMessages((message) => {
@@ -650,6 +710,18 @@ export default function NetworkCommsOverlay() {
               <div>You: {displayName || peerId || "connecting..."}</div>
               {connectedPeerIds.map((id) => (
                 <div key={id}>• {id}</div>
+              ))}
+              <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8 }}>
+                Remote streams tracked: {Object.keys(remoteMediaStreams).length}
+              </div>
+            </div>
+            <div style={{ borderBottom: "1px solid rgba(255,255,255,0.12)", padding: "8px 12px", fontSize: 11, maxHeight: 130, overflow: "auto" }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Media debug</div>
+              {debugEvents.length === 0 && <div style={{ opacity: 0.7 }}>No media events yet</div>}
+              {debugEvents.map((event) => (
+                <div key={event.id} style={{ marginBottom: 2, opacity: 0.9 }}>
+                  [{event.timestamp}] {event.label}
+                </div>
               ))}
             </div>
             <div ref={chatScrollRef} style={overlayStyles.chatLog}>
