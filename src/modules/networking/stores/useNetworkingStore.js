@@ -18,6 +18,8 @@ export const useNetworkingStore = create((set) => ({
   displayName: "",
   activeConnections: {},
   errors: [],
+  chatMessages: [],
+  remoteMediaStreams: {},
   hasCompletedHostedNameFlow: false,
   setPeer: (peer) => {
     log("setPeer", { peerId: peer?.id });
@@ -58,5 +60,25 @@ export const useNetworkingStore = create((set) => ({
       return {
         errors: [...state.errors, error],
       };
+    }),
+  addChatMessage: (message) =>
+    set((state) => {
+      const nextMessages = [...state.chatMessages, message];
+      return {
+        chatMessages: nextMessages.slice(-200),
+      };
+    }),
+  addRemoteMediaStream: (peerId, stream) =>
+    set((state) => ({
+      remoteMediaStreams: {
+        ...state.remoteMediaStreams,
+        [peerId]: stream,
+      },
+    })),
+  removeRemoteMediaStream: (peerId) =>
+    set((state) => {
+      const nextStreams = { ...state.remoteMediaStreams };
+      delete nextStreams[peerId];
+      return { remoteMediaStreams: nextStreams };
     }),
 }));
