@@ -294,6 +294,7 @@ export default function NetworkCommsOverlay() {
 
   const outboundCallsRef = useRef({});
   const inboundCallsRef = useRef({});
+  const inboundCallsBySourceRef = useRef({});
   const mediaStatsIntervalsRef = useRef({});
   const chatScrollRef = useRef(null);
 
@@ -525,6 +526,18 @@ export default function NetworkCommsOverlay() {
     ({ remotePeerId, source, incomingStream }) => {
       if (!incomingStream) return null;
       const streamId = `${remotePeerId}:${source}`;
+      const currentEntry = remoteMediaStreams[streamId];
+
+      if (currentEntry?.incomingStreamId === incomingStream.id) {
+        pushDebugEvent("remote stream unchanged", {
+          remotePeerId,
+          source,
+          streamId,
+          incomingStreamId: incomingStream.id,
+        });
+        return { streamId, incomingStreamId: incomingStream.id };
+      }
+
       pushDebugEvent("remote stream registered", {
         remotePeerId,
         source,
@@ -548,7 +561,7 @@ export default function NetworkCommsOverlay() {
       });
       return { streamId, incomingStreamId: incomingStream.id };
     },
-    [addRemoteMediaStream, pushDebugEvent]
+    [addRemoteMediaStream, pushDebugEvent, remoteMediaStreams]
   );
 
   const connectMediaCallsForSource = useCallback(
@@ -693,6 +706,28 @@ export default function NetworkCommsOverlay() {
     const onCall = (call) => {
       const source = call?.metadata?.source || SOURCE_CAMERA;
       const streamKeyRef = { current: null };
+      const inboundCallSourceKey = `${call?.peer || "unknown"}:${source}`;
+      const existingCallForSource = inboundCallsBySourceRef.current[inboundCallSourceKey];
+
+      if (existingCallForSource && existingCallForSource !== call) {
+        pushDebugEvent("duplicate inbound call for source", {
+          fromPeer: call?.peer,
+          source,
+          previousConnectionId: existingCallForSource.connectionId,
+          nextConnectionId: call?.connectionId,
+        });
+
+        try {
+          existingCallForSource.close();
+        } catch (error) {
+          console.warn("[network/comms] failed to close duplicate inbound call", {
+            inboundCallSourceKey,
+            error,
+          });
+        }
+      }
+
+      inboundCallsBySourceRef.current[inboundCallSourceKey] = call;
 
       pushDebugEvent("inbound call received", {
         fromPeer: call?.peer,
@@ -748,6 +783,11 @@ export default function NetworkCommsOverlay() {
         if (streamKeyRef.current) {
           removeRemoteMediaStreamIfMatches(streamKeyRef.current);
         }
+
+        if (inboundCallsBySourceRef.current[inboundCallSourceKey] === call) {
+          delete inboundCallsBySourceRef.current[inboundCallSourceKey];
+        }
+
         stopStats?.();
       };
 
