@@ -1,9 +1,10 @@
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useGame } from '@/modules/third_person_controller/stores/useGame';
 import useRpgProgressionStore from '../stores/useRpgProgressionStore';
 import { INTERACTION_RANGE } from '../hooks/useNearbyInteractables';
+import { useParticleEffects } from '@/support_modules/particle_effects';
 
 const ACTION_COOLDOWN = 0.45;
 const RUNNING_XP_PER_SECOND = 5.5;
@@ -20,9 +21,31 @@ export default function ProgressionSystem({ controllerRef, trainingStations, inp
   const lastActionAt = useRef(0);
   const playerPosition = useMemo(() => new THREE.Vector3(), []);
   const addExperience = useRpgProgressionStore((state) => state.addExperience);
+  const lastExperienceEvent = useRpgProgressionStore((state) => state.lastExperienceEvent);
   const animationSet = useGame((state) => state.animationSet);
   const triggerAction2Animation = useGame((state) => state.action2);
   const triggerAction4Animation = useGame((state) => state.action4);
+  const { triggerEffect } = useParticleEffects();
+
+  useEffect(() => {
+    if (!lastExperienceEvent || !lastExperienceEvent.position) {
+      return;
+    }
+
+    if (lastExperienceEvent.source !== 'movement') {
+      triggerEffect('TRAINING_ACTION', {
+        position: lastExperienceEvent.position,
+        skillId: lastExperienceEvent.skillId,
+      });
+    }
+
+    if (lastExperienceEvent.levelsGained > 0) {
+      triggerEffect('LEVEL_UP', {
+        position: lastExperienceEvent.position,
+        levelUps: lastExperienceEvent.levelsGained,
+      });
+    }
+  }, [lastExperienceEvent, triggerEffect]);
 
   useFrame((_, delta) => {
     const rigidBody = controllerRef.current?.group;
@@ -36,7 +59,9 @@ export default function ProgressionSystem({ controllerRef, trainingStations, inp
     const velocity = rigidBody.linvel();
     const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
     if (horizontalSpeed > MIN_RUNNING_SPEED) {
-      addExperience('running', delta * RUNNING_XP_PER_SECOND, 'movement');
+      addExperience('running', delta * RUNNING_XP_PER_SECOND, 'movement', {
+        position: [playerPosition.x, playerPosition.y, playerPosition.z],
+      });
     }
 
     const canInteract = inputRef.current.interact && performance.now() - lastActionAt.current > ACTION_COOLDOWN * 1000;
@@ -64,7 +89,9 @@ export default function ProgressionSystem({ controllerRef, trainingStations, inp
       return;
     }
 
-    addExperience(nearestStation.skillId, nearestStation.xp, nearestStation.name);
+    addExperience(nearestStation.skillId, nearestStation.xp, nearestStation.name, {
+      position: [playerPosition.x, playerPosition.y, playerPosition.z],
+    });
 
     const interactionAnimation = INTERACTION_ANIMATION_BY_SKILL[nearestStation.skillId];
     if (interactionAnimation === 'action4' && animationSet.action4) {
