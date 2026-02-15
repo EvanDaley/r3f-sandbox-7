@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNetworkingStore } from "../stores/useNetworkingStore";
+import { useVoiceChat } from "../hooks/useVoiceChat";
 
 const overlayStyles = {
   launcher: {
@@ -210,6 +211,17 @@ export default function CommsOverlay() {
   );
 
   const connectedPeerIds = Object.keys(activeConnections).filter((id) => id !== peerId);
+
+  // Voice chat hook
+  const {
+    isInVoiceChat,
+    isMuted,
+    voiceError,
+    remoteAudioStreams,
+    startVoiceChat,
+    stopVoiceChat,
+    toggleMute,
+  } = useVoiceChat(peer, connectedPeerIds);
 
   // Cleanup function for streams
   const cleanupStream = useCallback(() => {
@@ -468,25 +480,50 @@ export default function CommsOverlay() {
             </div>
 
             <div style={overlayStyles.controlsBar}>
-              {error && (
+              {(error || voiceError) && (
                 <div style={{ width: "100%", color: "#ffb4b4", fontSize: 12, lineHeight: 1.35 }}>
-                  {error}
+                  {error || voiceError}
                 </div>
               )}
-              {!isSharing ? (
-                <button
-                  type="button"
-                  style={controlButtonStyle({ active: false })}
-                  onClick={startScreenShare}
-                  disabled={!canShare}
-                >
-                  Start Sharing
-                </button>
-              ) : (
-                <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopScreenShare}>
-                  Stop Sharing
-                </button>
-              )}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
+                {!isSharing ? (
+                  <button
+                    type="button"
+                    style={controlButtonStyle({ active: false })}
+                    onClick={startScreenShare}
+                    disabled={!canShare}
+                  >
+                    Start Sharing
+                  </button>
+                ) : (
+                  <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopScreenShare}>
+                    Stop Sharing
+                  </button>
+                )}
+                {!isInVoiceChat ? (
+                  <button
+                    type="button"
+                    style={controlButtonStyle({ active: false, disabled: connectedPeerIds.length === 0 })}
+                    onClick={startVoiceChat}
+                    disabled={connectedPeerIds.length === 0 || !peer}
+                  >
+                    Join Voice
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      style={controlButtonStyle({ active: !isMuted })}
+                      onClick={toggleMute}
+                    >
+                      {isMuted ? "🔇 Muted" : "🎤 Unmuted"}
+                    </button>
+                    <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopVoiceChat}>
+                      Leave Voice
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </section>
 
@@ -494,13 +531,35 @@ export default function CommsOverlay() {
             <h3 style={overlayStyles.sectionTitle}>Participants</h3>
             <div style={overlayStyles.participants}>
               <div><strong>Total:</strong> {connectedPeerIds.length + 1}</div>
-              <div>You: {displayName || peerId || "connecting..."}</div>
+              <div>
+                You: {displayName || peerId || "connecting..."}
+                {isInVoiceChat && (
+                  <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.9 }}>
+                    {isMuted ? "🔇" : "🎤"}
+                  </span>
+                )}
+              </div>
               {connectedPeerIds.map((id) => (
-                <div key={id}>• {id}</div>
+                <div key={id}>
+                  • {id}
+                  {remoteAudioStreams.has(id) && (
+                    <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.9 }}>🎤</span>
+                  )}
+                </div>
               ))}
               <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8 }}>
                 {isSharing ? "Sharing your screen" : "Not sharing"}
                 {remoteStream && " • Receiving remote share"}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
+                {isInVoiceChat ? (
+                  <>
+                    In voice chat {isMuted && "(muted)"}
+                    {remoteAudioStreams.size > 0 && ` • ${remoteAudioStreams.size} active speaker${remoteAudioStreams.size > 1 ? "s" : ""}`}
+                  </>
+                ) : (
+                  "Not in voice chat"
+                )}
               </div>
             </div>
           </aside>
