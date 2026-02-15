@@ -179,10 +179,23 @@ function StreamTile({ label, subtitle, stream, muted, onClick, isActive, style }
       }
     };
 
+    const handleTrackStateChange = () => {
+      attemptPlay();
+    };
+
+    stream?.getTracks().forEach((track) => {
+      track.addEventListener("unmute", handleTrackStateChange);
+      track.addEventListener("ended", handleTrackStateChange);
+    });
+
     videoElement.onloadedmetadata = attemptPlay;
     attemptPlay();
 
     return () => {
+      stream?.getTracks().forEach((track) => {
+        track.removeEventListener("unmute", handleTrackStateChange);
+        track.removeEventListener("ended", handleTrackStateChange);
+      });
       videoElement.onloadedmetadata = null;
     };
   }, [label, stream, subtitle]);
@@ -254,6 +267,7 @@ export default function NetworkCommsOverlay() {
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isRemoteAudioEnabled, setIsRemoteAudioEnabled] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [featuredTileId, setFeaturedTileId] = useState(null);
   const [debugEvents, setDebugEvents] = useState([]);
@@ -265,6 +279,14 @@ export default function NetworkCommsOverlay() {
   const connectedPeerIds = useMemo(() => Object.keys(activeConnections), [activeConnections]);
 
   const buildCallKey = useCallback((remotePeerId, source) => `${remotePeerId}:${source}`, []);
+
+  const shouldInitiateCall = useCallback(
+    (remotePeerId) => {
+      if (!peerId || !remotePeerId) return true;
+      return peerId.localeCompare(remotePeerId) < 0;
+    },
+    [peerId]
+  );
 
 
   const pushDebugEvent = useCallback((label, details = {}) => {
@@ -351,6 +373,7 @@ export default function NetworkCommsOverlay() {
 
       connectedPeerIds.forEach((remotePeerId) => {
         if (!remotePeerId || remotePeerId === peerId) return;
+        if (!shouldInitiateCall(remotePeerId)) return;
 
         const callKey = buildCallKey(remotePeerId, source);
         if (outboundCallsRef.current[callKey]) return;
@@ -405,7 +428,16 @@ export default function NetworkCommsOverlay() {
         });
       });
     },
-    [buildCallKey, connectedPeerIds, peer, peerId, pushDebugEvent, registerIncomingStream, removeRemoteMediaStreamIfMatches]
+    [
+      buildCallKey,
+      connectedPeerIds,
+      peer,
+      peerId,
+      pushDebugEvent,
+      registerIncomingStream,
+      removeRemoteMediaStreamIfMatches,
+      shouldInitiateCall,
+    ]
   );
 
   const enableDevices = useCallback(async () => {
@@ -458,10 +490,6 @@ export default function NetworkCommsOverlay() {
   }, [buildCallKey, connectedPeerIds, screenStream, teardownOutboundCall]);
 
   const startScreenShare = useCallback(async () => {
-    if (!cameraStream) {
-      await enableDevices();
-    }
-
     try {
       const nextScreenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
@@ -483,7 +511,7 @@ export default function NetworkCommsOverlay() {
     } catch (error) {
       console.error("[network/comms] screen share denied/unavailable", error);
     }
-  }, [cameraStream, connectMediaCallsForSource, enableDevices, stopScreenShare]);
+  }, [connectMediaCallsForSource, stopScreenShare]);
 
   useEffect(() => {
     if (!peer) return undefined;
@@ -684,7 +712,7 @@ export default function NetworkCommsOverlay() {
                   <StreamTile
                     key={tile.streamId}
                     stream={tile.stream}
-                    muted={false}
+                    muted={!isRemoteAudioEnabled || featuredTileId !== tile.streamId}
                     label={tile.peerId}
                     subtitle={tile.source === SOURCE_SCREEN ? "Screen" : "Camera"}
                     onClick={() => setFeaturedTileId((current) => (current === tile.streamId ? null : tile.streamId))}
@@ -724,7 +752,6 @@ export default function NetworkCommsOverlay() {
                   type="button"
                   style={controlButtonStyle({ active: false })}
                   onClick={startScreenShare}
-                  disabled={!cameraStream}
                 >
                   Present now
                 </button>
@@ -733,6 +760,13 @@ export default function NetworkCommsOverlay() {
                   Stop presenting
                 </button>
               )}
+              <button
+                type="button"
+                style={controlButtonStyle({ active: isRemoteAudioEnabled })}
+                onClick={() => setIsRemoteAudioEnabled((current) => !current)}
+              >
+                {isRemoteAudioEnabled ? "Disable remote audio" : "Enable remote audio"}
+              </button>
             </div>
           </section>
 
