@@ -119,25 +119,46 @@ const overlayStyles = {
 
 function VideoTile({ label, subtitle, stream, muted, onClick, isActive, style }) {
   const videoRef = useRef(null);
+  const [videoAspectRatio, setVideoAspectRatio] = useState(16 / 9);
 
   useEffect(() => {
     if (!videoRef.current) return;
 
     const videoElement = videoRef.current;
     if (stream) {
-      videoElement.srcObject = stream;
+      // Only update srcObject if it's actually different to avoid unnecessary re-renders
+      if (videoElement.srcObject !== stream) {
+        videoElement.srcObject = stream;
+      }
       videoElement.play().catch((err) => {
         console.warn("[comms] video play failed", { label, err });
       });
-    } else {
-      videoElement.srcObject = null;
-    }
 
-    return () => {
-      if (videoElement) {
+      // Update aspect ratio when video metadata loads
+      const updateAspectRatio = () => {
+        if (videoElement.videoWidth && videoElement.videoHeight) {
+          const aspectRatio = videoElement.videoWidth / videoElement.videoHeight;
+          setVideoAspectRatio(aspectRatio);
+        }
+      };
+
+      videoElement.addEventListener("loadedmetadata", updateAspectRatio);
+      
+      // Try to get aspect ratio immediately if already loaded
+      if (videoElement.videoWidth && videoElement.videoHeight) {
+        updateAspectRatio();
+      }
+
+      return () => {
+        videoElement.removeEventListener("loadedmetadata", updateAspectRatio);
+        // Don't clear srcObject in cleanup - only clear if stream becomes null
+      };
+    } else {
+      // Only clear if it's not already null
+      if (videoElement.srcObject !== null) {
         videoElement.srcObject = null;
       }
-    };
+    }
   }, [label, stream, subtitle]);
 
   return (
@@ -146,6 +167,10 @@ function VideoTile({ label, subtitle, stream, muted, onClick, isActive, style })
         ...overlayStyles.tile,
         ...(style || {}),
         border: isActive ? "1px solid rgba(101,149,255,0.9)" : (style?.border || overlayStyles.tile.border),
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
       }}
       onClick={onClick}
       role="button"
@@ -156,16 +181,33 @@ function VideoTile({ label, subtitle, stream, muted, onClick, isActive, style })
         }
       }}
     >
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted={muted}
-        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", aspectRatio: "16 / 9" }}
-      />
-      <div style={overlayStyles.tileMeta}>
-        {label}
-        {subtitle ? ` • ${subtitle}` : ""}
+      <div
+        style={{
+          width: "100%",
+          position: "relative",
+          paddingTop: `${(1 / videoAspectRatio) * 100}%`,
+          backgroundColor: "#000",
+        }}
+      >
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={muted}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            display: "block",
+          }}
+        />
+        <div style={overlayStyles.tileMeta}>
+          {label}
+          {subtitle ? ` • ${subtitle}` : ""}
+        </div>
       </div>
     </div>
   );
@@ -204,6 +246,7 @@ export default function CommsOverlay() {
   const [featuredStream, setFeaturedStream] = useState(null);
 
   const activeCallsRef = useRef(new Map());
+  const outgoingCallsRef = useRef(new Set()); // Track which calls we initiated
   const streamRef = useRef(null);
 
   // Get connected peer ID (the other peer)
@@ -247,16 +290,21 @@ export default function CommsOverlay() {
     setIsSharing(false);
   }, []);
 
-  // Cleanup function for calls
+  // Cleanup function for calls - only closes outgoing calls we initiated
   const cleanupCalls = useCallback(() => {
-    activeCallsRef.current.forEach((call) => {
-      try {
-        call.close();
-      } catch (err) {
-        console.warn("[comms] error closing call", err);
+    // Only close outgoing calls (calls we initiated)
+    outgoingCallsRef.current.forEach((peerId) => {
+      const call = activeCallsRef.current.get(peerId);
+      if (call) {
+        try {
+          call.close();
+        } catch (err) {
+          console.warn("[comms] error closing outgoing call", err);
+        }
+        activeCallsRef.current.delete(peerId);
       }
     });
-    activeCallsRef.current.clear();
+    outgoingCallsRef.current.clear();
   }, []);
 
   // Start screensharing
@@ -312,6 +360,7 @@ export default function CommsOverlay() {
       }
 
       activeCallsRef.current.set(connectedPeerId, call);
+      outgoingCallsRef.current.add(connectedPeerId); // Mark as outgoing call
 
       // Handle incoming stream from peer (bidirectional)
       call.on("stream", (remoteStream) => {
@@ -321,16 +370,21 @@ export default function CommsOverlay() {
 
       // Handle call errors
       call.on("error", (err) => {
-        console.error("[comms] call error", err);
+        console.error("[comms] outgoing call error", err);
         setError(`Connection error: ${err.message || "Unknown error"}`);
-        cleanupCalls();
+        const wasOutgoing = outgoingCallsRef.current.has(connectedPeerId);
+        activeCallsRef.current.delete(connectedPeerId);
+        outgoingCallsRef.current.delete(connectedPeerId);
+        // Don't clear remote stream - it comes from the incoming call, not this outgoing call
       });
 
-      // Handle call close
+      // Handle call close - for outgoing calls, don't clear remote stream
+      // The remote stream comes from the incoming call, not this outgoing call
       call.on("close", () => {
-        console.log("[comms] call closed");
+        console.log("[comms] outgoing call closed");
         activeCallsRef.current.delete(connectedPeerId);
-        setRemoteStream(null);
+        outgoingCallsRef.current.delete(connectedPeerId);
+        // Don't clear remoteStream here - it comes from the incoming call
       });
     } catch (err) {
       console.error("[comms] start screen share error", err);
@@ -351,10 +405,19 @@ export default function CommsOverlay() {
 
   // Stop screensharing
   const stopScreenShare = useCallback(() => {
-    cleanupCalls();
+    // Clear featured stream if it was pointing to our local stream (before cleanup)
+    const currentLocalStream = streamRef.current;
+    setFeaturedStream((current) => {
+      // If featured stream was our local stream, clear it so remote stream can show
+      if (current === currentLocalStream || current === localStream) {
+        return null;
+      }
+      return current;
+    });
+    cleanupCalls(); // Only closes outgoing calls, preserves incoming calls
     cleanupStream();
-    setRemoteStream(null);
-  }, [cleanupCalls, cleanupStream]);
+    // Don't clear remoteStream here - let it persist if the other person is still sharing
+  }, [cleanupCalls, cleanupStream, localStream]);
 
   // Handle incoming calls
   useEffect(() => {
@@ -371,11 +434,19 @@ export default function CommsOverlay() {
 
       console.log("[comms] incoming screenshare call from", call.peer);
 
-      // Answer the call (we can answer with null if we're not sharing)
-      call.answer(localStream || null);
+      // Check if we already have this call (don't re-answer)
+      if (activeCallsRef.current.has(call.peer)) {
+        console.log("[comms] already have incoming call from", call.peer);
+        return;
+      }
 
-      // Store the call
+      // Answer the call with current local stream (or null if not sharing)
+      // Use streamRef to get the most current stream value
+      call.answer(streamRef.current || null);
+
+      // Store the call (this is an incoming call, not outgoing)
       activeCallsRef.current.set(call.peer, call);
+      // Don't add to outgoingCallsRef - this is incoming
 
       // Handle incoming stream
       call.on("stream", (remoteStream) => {
@@ -390,11 +461,11 @@ export default function CommsOverlay() {
         setRemoteStream(null);
       });
 
-      // Handle call close
+      // Handle call close - this means the other person stopped sharing
       call.on("close", () => {
-        console.log("[comms] incoming call closed");
+        console.log("[comms] incoming call closed - remote person stopped sharing");
         activeCallsRef.current.delete(call.peer);
-        setRemoteStream(null);
+        setRemoteStream(null); // Clear remote stream when they stop sharing
       });
     };
 
@@ -403,7 +474,7 @@ export default function CommsOverlay() {
     return () => {
       peer.off("call", handleCall);
     };
-  }, [peer, localStream]);
+  }, [peer]); // Remove localStream from dependencies - we'll use streamRef.current instead
 
   // Cleanup on unmount
   useEffect(() => {
@@ -423,23 +494,38 @@ export default function CommsOverlay() {
 
   // Determine which stream to show in featured tile (prioritize screen share, then camera)
   // featuredStream is set when user clicks on a stream tile
-  const featuredStreamToShow = featuredStream 
+  // Validate that featuredStream is still a valid/active stream
+  const isValidFeaturedStream = featuredStream && (
+    featuredStream === remoteStream ||
+    featuredStream === localStream ||
+    featuredStream === localCameraStream ||
+    Array.from(remoteCameraStreams.values()).includes(featuredStream)
+  );
+  
+  const featuredStreamToShow = isValidFeaturedStream
     ? featuredStream
     : remoteStream || localStream || localCameraStream || 
       (remoteCameraStreams.size > 0 ? Array.from(remoteCameraStreams.values())[0] : null);
+  
+  // Clear featuredStream if it's no longer valid
+  useEffect(() => {
+    if (featuredStream && !isValidFeaturedStream) {
+      setFeaturedStream(null);
+    }
+  }, [featuredStream, isValidFeaturedStream, remoteStream, localStream, localCameraStream, remoteCameraStreams]);
   
   // Find which peer this featured stream belongs to
   const featuredRemoteCameraPeerId = featuredStreamToShow && remoteCameraStreams.size > 0
     ? Array.from(remoteCameraStreams.entries()).find(([_, stream]) => stream === featuredStreamToShow)?.[0]
     : null;
 
-  const featuredLabel = featuredStream === remoteStream
+  const featuredLabel = featuredStreamToShow === remoteStream
     ? `Remote (${connectedPeerId?.slice(0, 8)}...)`
     : featuredRemoteCameraPeerId
     ? `Remote (${featuredRemoteCameraPeerId.slice(0, 8)}...)`
-    : featuredStream === localStream
+    : featuredStreamToShow === localStream
     ? "You"
-    : featuredStream === localCameraStream
+    : featuredStreamToShow === localCameraStream
     ? "You"
     : remoteStream
     ? `Remote (${connectedPeerId?.slice(0, 8)}...)`
@@ -451,9 +537,9 @@ export default function CommsOverlay() {
     ? `Remote (${featuredRemoteCameraPeerId.slice(0, 8)}...)`
     : null;
 
-  const featuredSubtitle = (featuredStream === remoteStream || featuredStream === localStream || remoteStream || localStream)
+  const featuredSubtitle = (featuredStreamToShow === remoteStream || featuredStreamToShow === localStream || remoteStream || localStream)
     ? "Screen Share"
-    : (featuredStream === localCameraStream || featuredRemoteCameraPeerId || localCameraStream)
+    : (featuredStreamToShow === localCameraStream || featuredRemoteCameraPeerId || localCameraStream)
     ? "Camera"
     : null;
 
