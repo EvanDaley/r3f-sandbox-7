@@ -33,6 +33,8 @@ export default function NetworkingGateway() {
 }
 
 const hudStyle = {
+  // Turning this off for now. 
+  display: "none",
   position: "fixed",
   top: 12,
   right: 12,
