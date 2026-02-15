@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNetworkingStore } from "../stores/useNetworkingStore";
 import { useVoiceChat } from "../hooks/useVoiceChat";
 import { useCameraShare } from "../hooks/useCameraShare";
+import { useScreenShare } from "../hooks/useScreenShare";
 
 // Custom scrollbar styles for thumbnail grid
 const scrollbarStyles = `
@@ -293,10 +294,6 @@ export default function CommsOverlay() {
   const displayName = useNetworkingStore((state) => state.displayName);
 
   const [isOpen, setIsOpen] = useState(true); // Open by default
-  const [localStream, setLocalStream] = useState(null);
-  const [remoteStream, setRemoteStream] = useState(null);
-  const [isSharing, setIsSharing] = useState(false);
-  const [error, setError] = useState("");
   const [featuredStream, setFeaturedStream] = useState(null);
 
   // Note that on the height we later SUBTRACT the height of the featured video area (400px)
@@ -304,15 +301,6 @@ export default function CommsOverlay() {
   const [isParticipantsCollapsed, setIsParticipantsCollapsed] = useState(true); // Hidden by default
   const [isFeaturedVideoVisible, setIsFeaturedVideoVisible] = useState(false); // Hidden by default
   const [isThumbnailsVisible, setIsThumbnailsVisible] = useState(true); // Visible by default
-
-  const activeCallsRef = useRef(new Map());
-  const outgoingCallsRef = useRef(new Set()); // Track which calls we initiated
-  const streamRef = useRef(null);
-
-  // Get connected peer ID (the other peer)
-  const connectedPeerId = Object.keys(activeConnections).find(
-    (id) => id !== peerId && id
-  );
 
   const connectedPeerIds = Object.keys(activeConnections).filter((id) => id !== peerId);
 
@@ -337,296 +325,62 @@ export default function CommsOverlay() {
     stopCameraShare,
   } = useCameraShare(peer, connectedPeerIds);
 
-  // Cleanup function for streams
-  const cleanupStream = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        track.stop();
-        track.onended = null;
-      });
-      streamRef.current = null;
-    }
-    setLocalStream(null);
-    setIsSharing(false);
-  }, []);
+  // Screen share hook
+  const {
+    isSharingScreen,
+    screenError,
+    localScreenStream,
+    remoteScreenStreams,
+    startScreenShare,
+    stopScreenShare,
+  } = useScreenShare(peer, connectedPeerIds);
 
-  // Cleanup function for calls - only closes outgoing calls we initiated
-  const cleanupCalls = useCallback(() => {
-    // Only close outgoing calls (calls we initiated)
-    outgoingCallsRef.current.forEach((peerId) => {
-      const call = activeCallsRef.current.get(peerId);
-      if (call) {
-        try {
-          call.close();
-        } catch (err) {
-          console.warn("[comms] error closing outgoing call", err);
-        }
-        activeCallsRef.current.delete(peerId);
-      }
+  const remoteScreenEntries = Array.from(remoteScreenStreams.entries());
+
+  // Available streams for the grid (screen shares and cameras) - always show all streams
+  const gridStreams = [];
+
+  if (localScreenStream) {
+    gridStreams.push({ stream: localScreenStream, label: "You", subtitle: "Screen", type: "screen" });
+  }
+
+  remoteScreenEntries.forEach(([remotePeerId, stream]) => {
+    gridStreams.push({
+      stream,
+      label: remotePeerId.slice(0, 8) || "Remote",
+      subtitle: "Screen",
+      type: "screen",
     });
-    outgoingCallsRef.current.clear();
-  }, []);
+  });
 
-  // Start screensharing
-  const startScreenShare = useCallback(async () => {
-    if (!peer || !connectedPeerId) {
-      setError("Not connected to another peer. Please wait for connection.");
-      return;
-    }
+  if (localCameraStream) {
+    gridStreams.push({ stream: localCameraStream, label: "You", subtitle: "Camera", type: "camera" });
+  }
 
-    try {
-      setError("");
+  remoteCameraStreams.forEach((stream, remotePeerId) => {
+    gridStreams.push({ stream, label: remotePeerId.slice(0, 8) || "Remote", subtitle: "Camera", type: "camera" });
+  });
 
-      // Request screen share with modern constraints
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: "monitor",
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 30, max: 60 },
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+  // Determine which stream to show in featured tile
+  const isValidFeaturedStream = featuredStream && gridStreams.some((item) => item.stream === featuredStream);
 
-      // Check if we got a video track
-      const videoTrack = stream.getVideoTracks()[0];
-      if (!videoTrack) {
-        stream.getTracks().forEach((track) => track.stop());
-        setError("No video track available from screen share.");
-        return;
-      }
+  const preferredStream =
+    remoteScreenEntries[0]?.[1] || localScreenStream || localCameraStream || Array.from(remoteCameraStreams.values())[0] || null;
 
-      // Handle track ending (user stops sharing via browser UI)
-      videoTrack.onended = () => {
-        console.log("[comms] screen share ended by user");
-        stopScreenShare();
-      };
+  const featuredStreamToShow = isValidFeaturedStream ? featuredStream : preferredStream;
 
-      streamRef.current = stream;
-      setLocalStream(stream);
-      setIsSharing(true);
-
-      // Create call to connected peer
-      const call = peer.call(connectedPeerId, stream, {
-        metadata: { type: "screenshare" },
-      });
-
-      if (!call) {
-        throw new Error("Failed to create peer call");
-      }
-
-      activeCallsRef.current.set(connectedPeerId, call);
-      outgoingCallsRef.current.add(connectedPeerId); // Mark as outgoing call
-
-      // Handle incoming stream from peer (bidirectional)
-      call.on("stream", (remoteStream) => {
-        console.log("[comms] received remote stream", remoteStream.id);
-        setRemoteStream(remoteStream);
-      });
-
-      // Handle call errors
-      call.on("error", (err) => {
-        console.error("[comms] outgoing call error", err);
-        setError(`Connection error: ${err.message || "Unknown error"}`);
-        const wasOutgoing = outgoingCallsRef.current.has(connectedPeerId);
-        activeCallsRef.current.delete(connectedPeerId);
-        outgoingCallsRef.current.delete(connectedPeerId);
-        // Don't clear remote stream - it comes from the incoming call, not this outgoing call
-      });
-
-      // Handle call close - for outgoing calls, don't clear remote stream
-      // The remote stream comes from the incoming call, not this outgoing call
-      call.on("close", () => {
-        console.log("[comms] outgoing call closed");
-        activeCallsRef.current.delete(connectedPeerId);
-        outgoingCallsRef.current.delete(connectedPeerId);
-        // Don't clear remoteStream here - it comes from the incoming call
-      });
-    } catch (err) {
-      console.error("[comms] start screen share error", err);
-      
-      let errorMessage = "Failed to start screen share.";
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        errorMessage = "Screen share permission was denied. Please allow access.";
-      } else if (err.name === "NotFoundError" || err.name === "NotReadableError") {
-        errorMessage = "Screen share is not available. Check your display settings.";
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      setError(errorMessage);
-      cleanupStream();
-    }
-  }, [peer, connectedPeerId, cleanupStream, cleanupCalls]);
-
-  // Stop screensharing
-  const stopScreenShare = useCallback(() => {
-    // Clear featured stream if it was pointing to our local stream (before cleanup)
-    const currentLocalStream = streamRef.current;
-    setFeaturedStream((current) => {
-      // If featured stream was our local stream, clear it so remote stream can show
-      if (current === currentLocalStream || current === localStream) {
-        return null;
-      }
-      return current;
-    });
-    cleanupCalls(); // Only closes outgoing calls, preserves incoming calls
-    cleanupStream();
-    // Don't clear remoteStream here - let it persist if the other person is still sharing
-  }, [cleanupCalls, cleanupStream, localStream]);
-
-  // Handle incoming calls
-  useEffect(() => {
-    if (!peer) return;
-
-    const handleCall = (call) => {
-      const callType = call.metadata?.type;
-      
-      // Only handle screenshare calls
-      if (callType !== "screenshare") {
-        console.log("[comms] ignoring non-screenshare call", callType);
-        return;
-      }
-
-      console.log("[comms] incoming screenshare call from", call.peer);
-
-      // Check if we already have this call (don't re-answer)
-      if (activeCallsRef.current.has(call.peer)) {
-        console.log("[comms] already have incoming call from", call.peer);
-        return;
-      }
-
-      // Answer the call with current local stream (or null if not sharing)
-      // Use streamRef to get the most current stream value
-      call.answer(streamRef.current || null);
-
-      // Store the call (this is an incoming call, not outgoing)
-      activeCallsRef.current.set(call.peer, call);
-      // Don't add to outgoingCallsRef - this is incoming
-
-      // Handle incoming stream
-      call.on("stream", (remoteStream) => {
-        console.log("[comms] received remote stream from call", remoteStream.id);
-        setRemoteStream(remoteStream);
-      });
-
-      // Handle call errors
-      call.on("error", (err) => {
-        console.error("[comms] incoming call error", err);
-        activeCallsRef.current.delete(call.peer);
-        setRemoteStream(null);
-      });
-
-      // Handle call close - this means the other person stopped sharing
-      call.on("close", () => {
-        console.log("[comms] incoming call closed - remote person stopped sharing");
-        activeCallsRef.current.delete(call.peer);
-        setRemoteStream(null); // Clear remote stream when they stop sharing
-      });
-    };
-
-    peer.on("call", handleCall);
-
-    return () => {
-      peer.off("call", handleCall);
-    };
-  }, [peer]); // Remove localStream from dependencies - we'll use streamRef.current instead
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cleanupCalls();
-      cleanupStream();
-    };
-  }, [cleanupCalls, cleanupStream]);
-
-  // Cleanup remote stream when connection is lost
-  useEffect(() => {
-    if (!connectedPeerId && remoteStream) {
-      setRemoteStream(null);
-      cleanupCalls();
-    }
-  }, [connectedPeerId, remoteStream, cleanupCalls]);
-
-  // Determine which stream to show in featured tile (prioritize screen share, then camera)
-  // featuredStream is set when user clicks on a stream tile
-  // Validate that featuredStream is still a valid/active stream
-  const isValidFeaturedStream = featuredStream && (
-    featuredStream === remoteStream ||
-    featuredStream === localStream ||
-    featuredStream === localCameraStream ||
-    Array.from(remoteCameraStreams.values()).includes(featuredStream)
-  );
-  
-  const featuredStreamToShow = isValidFeaturedStream
-    ? featuredStream
-    : remoteStream || localStream || localCameraStream || 
-      (remoteCameraStreams.size > 0 ? Array.from(remoteCameraStreams.values())[0] : null);
-  
   // Clear featuredStream if it's no longer valid
   useEffect(() => {
     if (featuredStream && !isValidFeaturedStream) {
       setFeaturedStream(null);
     }
-  }, [featuredStream, isValidFeaturedStream, remoteStream, localStream, localCameraStream, remoteCameraStreams]);
-  
-  // Find which peer this featured stream belongs to
-  const featuredRemoteCameraPeerId = featuredStreamToShow && remoteCameraStreams.size > 0
-    ? Array.from(remoteCameraStreams.entries()).find(([_, stream]) => stream === featuredStreamToShow)?.[0]
-    : null;
+  }, [featuredStream, isValidFeaturedStream, gridStreams]);
 
-  const featuredLabel = featuredStreamToShow === remoteStream
-    ? `Remote (${connectedPeerId?.slice(0, 8)}...)`
-    : featuredRemoteCameraPeerId
-    ? `Remote (${featuredRemoteCameraPeerId.slice(0, 8)}...)`
-    : featuredStreamToShow === localStream
-    ? "You"
-    : featuredStreamToShow === localCameraStream
-    ? "You"
-    : remoteStream
-    ? `Remote (${connectedPeerId?.slice(0, 8)}...)`
-    : localStream
-    ? "You"
-    : localCameraStream
-    ? "You"
-    : featuredRemoteCameraPeerId
-    ? `Remote (${featuredRemoteCameraPeerId.slice(0, 8)}...)`
-    : null;
+  const featuredItem = gridStreams.find((item) => item.stream === featuredStreamToShow);
+  const featuredLabel = featuredItem?.label || null;
+  const featuredSubtitle = featuredItem?.type === "screen" ? "Screen Share" : featuredItem?.type === "camera" ? "Camera" : null;
 
-  const featuredSubtitle = (featuredStreamToShow === remoteStream || featuredStreamToShow === localStream || remoteStream || localStream)
-    ? "Screen Share"
-    : (featuredStreamToShow === localCameraStream || featuredRemoteCameraPeerId || localCameraStream)
-    ? "Camera"
-    : null;
-
-  // Available streams for the grid (screen shares and cameras) - always show all streams
-  const gridStreams = [];
-  
-  // Add local screen share (always show, even if featured)
-  if (localStream) {
-    gridStreams.push({ stream: localStream, label: "You", subtitle: "Screen", type: "screen" });
-  }
-  
-  // Add remote screen share (always show, even if featured)
-  if (remoteStream) {
-    gridStreams.push({ stream: remoteStream, label: connectedPeerId?.slice(0, 8) || "Remote", subtitle: "Screen", type: "screen" });
-  }
-  
-  // Add local camera (always show, even if featured)
-  if (localCameraStream) {
-    gridStreams.push({ stream: localCameraStream, label: "You", subtitle: "Camera", type: "camera" });
-  }
-  
-  // Add remote camera streams (always show, even if featured)
-  remoteCameraStreams.forEach((stream, peerId) => {
-    gridStreams.push({ stream, label: peerId.slice(0, 8) || "Remote", subtitle: "Camera", type: "camera" });
-  });
-
-  const canShare = connectedPeerId && peer && !isSharing;
+  const canShare = connectedPeerIds.length > 0 && peer && !isSharingScreen;
 
   // Featured video height (approximate, accounts for padding and gaps)
   const FEATURED_VIDEO_HEIGHT = 400;
@@ -717,7 +471,7 @@ export default function CommsOverlay() {
                   {featuredStreamToShow ? (
                     <VideoTile
                       stream={featuredStreamToShow}
-                      muted={featuredStreamToShow === localStream || featuredStreamToShow === localCameraStream}
+                      muted={featuredStreamToShow === localScreenStream || featuredStreamToShow === localCameraStream}
                       label={featuredLabel}
                       subtitle={featuredSubtitle}
                       onClick={() => {
@@ -758,7 +512,7 @@ export default function CommsOverlay() {
                       <VideoTile
                         key={`${item.type}-${item.label}-${idx}`}
                         stream={item.stream}
-                        muted={item.stream === localStream || item.stream === localCameraStream}
+                        muted={item.stream === localScreenStream || item.stream === localCameraStream}
                         label={item.label}
                         subtitle={item.subtitle}
                         onClick={() => {
@@ -783,13 +537,13 @@ export default function CommsOverlay() {
             </div>
 
             <div style={overlayStyles.controlsBar}>
-              {(error || voiceError || cameraError) && (
+              {(screenError || voiceError || cameraError) && (
                 <div style={{ width: "100%", color: "#ffb4b4", fontSize: 12, lineHeight: 1.35 }}>
-                  {error || voiceError || cameraError}
+                  {screenError || voiceError || cameraError}
                 </div>
               )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
-                {!isSharing ? (
+                {!isSharingScreen ? (
                   <button
                     type="button"
                     style={controlButtonStyle({ active: false })}
@@ -890,11 +644,14 @@ export default function CommsOverlay() {
                   {remoteCameraStreams.has(id) && (
                     <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.9 }}>📹</span>
                   )}
+                  {remoteScreenStreams.has(id) && (
+                    <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.9 }}>🖥️</span>
+                  )}
                 </div>
               ))}
               <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8 }}>
-                {isSharing ? "Sharing your screen" : "Not sharing screen"}
-                {remoteStream && " • Receiving remote share"}
+                {isSharingScreen ? "Sharing your screen" : "Not sharing screen"}
+                {remoteScreenStreams.size > 0 && ` • ${remoteScreenStreams.size} remote share${remoteScreenStreams.size > 1 ? "s" : ""}`}
               </div>
               <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
                 {isSharingCamera ? "Sharing your camera" : "Not sharing camera"}

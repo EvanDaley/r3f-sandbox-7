@@ -2,6 +2,8 @@
 
 This document describes how video and audio sharing works in the CommsOverlay component.
 
+> See also: `docs/MULTI_PEER_VIDEO_MESH_PROPOSAL.md` for a forward-looking proposal to support all-peer video fan-out and late-join feed sync.
+
 ## Overview
 
 The video sharing system uses **WebRTC** via **PeerJS** to enable real-time peer-to-peer media streaming. The system supports three distinct types of media sharing:
