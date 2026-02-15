@@ -1,14 +1,13 @@
 import { Html, KeyboardControls, Text } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import CharacterModel from '../third_person_blender_integrated/CharacterModel';
 import Ecctrl from '../third_person_controller/Ecctrl';
 import { RPG_KEYBOARD_MAP } from '../rpg/config/progressionConfig';
 import TrainingStation from '../rpg/components/TrainingStation';
 import useNearbyInteractables from '../rpg/hooks/useNearbyInteractables';
-import useSceneStore from '@/stores/sceneStore';
 
 const EXIT_TARGET = new THREE.Vector3(0, 0, -31);
 
@@ -28,7 +27,16 @@ function PlayerCharacter({ controllerRef }) {
       position={[0, 1.5, 8]}
       ref={controllerRef}
     >
-      <CharacterModel />
+      <Suspense
+        fallback={
+          <mesh castShadow>
+            <capsuleGeometry args={[0.35, 0.8, 8, 16]} />
+            <meshStandardMaterial color='#60a5fa' roughness={0.5} metalness={0.1} />
+          </mesh>
+        }
+      >
+        <CharacterModel />
+      </Suspense>
     </Ecctrl>
   );
 }
@@ -95,8 +103,7 @@ function TutorialMovingPlatforms() {
   );
 }
 
-function TutorialFlow({ controllerRef, nearbyInteractableIds, tutorialStations, inputRef, onInteraction }) {
-  const setSceneId = useSceneStore((state) => state.setSceneId);
+function TutorialFlow({ controllerRef, nearbyInteractableIds, tutorialStations, inputRef, onInteraction, onExitTutorial }) {
   const playerPosition = useMemo(() => new THREE.Vector3(), []);
   const lastInteractionAt = useRef(0);
   const hasExited = useRef(false);
@@ -112,7 +119,7 @@ function TutorialFlow({ controllerRef, nearbyInteractableIds, tutorialStations, 
 
     if (!hasExited.current && playerPosition.distanceToSquared(EXIT_TARGET) <= 10) {
       hasExited.current = true;
-      setSceneId('rpg');
+      onExitTutorial();
       return;
     }
 
@@ -239,6 +246,9 @@ export default function TutorialScene() {
           tutorialStations={tutorialStations}
           inputRef={inputRef}
           onInteraction={(label) => setLastInteractedLabel(label)}
+          onExitTutorial={() => {
+            window.dispatchEvent(new CustomEvent('scene:go-rpg'));
+          }}
         />
 
         <RigidBody type='fixed' colliders='cuboid' position={[0, -0.2, -8]}>
