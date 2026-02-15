@@ -54,7 +54,7 @@ export function useCameraShare(peer, connectedPeerIds) {
     try {
       setCameraError("");
 
-      // Request camera access with video constraints
+      // Request camera access with video-only (no audio - use voice chat for audio)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280, max: 1920 },
@@ -62,11 +62,7 @@ export function useCameraShare(peer, connectedPeerIds) {
           frameRate: { ideal: 30, max: 60 },
           facingMode: "user",
         },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: false,
       });
 
       // Check if we got a video track
