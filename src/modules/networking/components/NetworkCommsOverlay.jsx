@@ -297,6 +297,7 @@ export default function NetworkCommsOverlay() {
   const inboundCallsBySourceRef = useRef({});
   const mediaStatsIntervalsRef = useRef({});
   const chatScrollRef = useRef(null);
+  const screenShareCallsRef = useRef(new Map()); // Simple map for screenshare calls
 
   const connectedPeerIds = useMemo(() => Object.keys(activeConnections), [activeConnections]);
 
@@ -665,40 +666,126 @@ export default function NetworkCommsOverlay() {
   }, [cameraStream]);
 
   const stopScreenShare = useCallback(() => {
-    if (!screenStream) return;
+    // Stop all screen tracks
+    if (screenStream) {
+      screenStream.getTracks().forEach((track) => {
+        track.stop();
+        track.onended = null;
+      });
+    }
 
-    screenStream.getTracks().forEach((track) => track.stop());
+    // Close all screenshare calls
+    screenShareCallsRef.current.forEach((call) => {
+      try {
+        call.close();
+      } catch (err) {
+        console.warn("[network/comms] error closing screenshare call", err);
+      }
+    });
+    screenShareCallsRef.current.clear();
+
     setScreenStream(null);
     setIsScreenSharing(false);
-
-    connectedPeerIds.forEach((remotePeerId) => {
-      teardownOutboundCall(buildCallKey(remotePeerId, SOURCE_SCREEN));
-    });
-  }, [buildCallKey, connectedPeerIds, screenStream, teardownOutboundCall]);
+  }, [screenStream]);
 
   const startScreenShare = useCallback(async () => {
+    if (!peer) {
+      setMediaError("Peer not initialized");
+      return;
+    }
+
+    const connectedPeerId = connectedPeerIds.find((id) => id !== peerId && id);
+    if (!connectedPeerId) {
+      setMediaError("Not connected to another peer");
+      return;
+    }
+
     try {
-      const nextScreenStream = await navigator.mediaDevices.getDisplayMedia({
+      setMediaError("");
+
+      // Request screen share with modern constraints
+      const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          frameRate: 24,
+          displaySurface: "monitor",
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: 30, max: 60 },
         },
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
 
-      const [screenTrack] = nextScreenStream.getVideoTracks();
-      if (!screenTrack) return;
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        stream.getTracks().forEach((track) => track.stop());
+        setMediaError("No video track available from screen share");
+        return;
+      }
 
-      screenTrack.onended = () => {
+      // Handle track ending (user stops sharing via browser UI)
+      videoTrack.onended = () => {
+        console.log("[network/comms] screen share ended by user");
         stopScreenShare();
       };
 
-      setScreenStream(nextScreenStream);
+      setScreenStream(stream);
       setIsScreenSharing(true);
-      connectMediaCallsForSource(nextScreenStream, SOURCE_SCREEN);
-    } catch (error) {
-      console.error("[network/comms] screen share denied/unavailable", error);
+
+      // Create call to connected peer - SIMPLE APPROACH
+      const call = peer.call(connectedPeerId, stream, {
+        metadata: { source: SOURCE_SCREEN },
+      });
+
+      if (!call) {
+        throw new Error("Failed to create peer call");
+      }
+
+      screenShareCallsRef.current.set(connectedPeerId, call);
+
+      // Handle incoming stream from peer (bidirectional)
+      call.on("stream", (remoteStream) => {
+        console.log("[network/comms] received remote screenshare stream", remoteStream.id);
+        registerIncomingStream({
+          remotePeerId: connectedPeerId,
+          source: SOURCE_SCREEN,
+          incomingStream: remoteStream,
+        });
+      });
+
+      // Handle call errors
+      call.on("error", (err) => {
+        console.error("[network/comms] screenshare call error", err);
+        setMediaError(`Screenshare connection error: ${err.message || "Unknown error"}`);
+        screenShareCallsRef.current.delete(connectedPeerId);
+      });
+
+      // Handle call close
+      call.on("close", () => {
+        console.log("[network/comms] screenshare call closed");
+        screenShareCallsRef.current.delete(connectedPeerId);
+        // Remove remote stream if it exists
+        const streamId = `${connectedPeerId}:${SOURCE_SCREEN}`;
+        removeRemoteMediaStream(streamId);
+      });
+    } catch (err) {
+      console.error("[network/comms] start screen share error", err);
+      
+      let errorMessage = "Failed to start screen share.";
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        errorMessage = "Screen share permission was denied. Please allow access.";
+      } else if (err.name === "NotFoundError" || err.name === "NotReadableError") {
+        errorMessage = "Screen share is not available. Check your display settings.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setMediaError(errorMessage);
+      stopScreenShare();
     }
-  }, [connectMediaCallsForSource, stopScreenShare]);
+  }, [peer, peerId, connectedPeerIds, stopScreenShare, registerIncomingStream, removeRemoteMediaStream]);
 
   useEffect(() => {
     if (!peer) return undefined;
@@ -733,12 +820,44 @@ export default function NetworkCommsOverlay() {
         fromPeer: call?.peer,
         source,
         hasCameraStream: !!cameraStream,
-        connectionId: call?.connectionId,
-        hasPeerConnection: !!getPeerConnectionFromCall(call),
-        callKeys: Object.keys(call || {}).slice(0, 12),
+        hasScreenStream: !!screenStream,
       });
 
-      call.answer(new MediaStream());
+      // Handle screenshare calls separately with simple approach
+      if (source === SOURCE_SCREEN) {
+        // Answer screenshare call with our screen stream (or null if not sharing)
+        call.answer(screenStream || null);
+        screenShareCallsRef.current.set(call.peer, call);
+
+        call.on("stream", (incomingStream) => {
+          console.log("[network/comms] received incoming screenshare stream", incomingStream.id);
+          streamKeyRef.current = registerIncomingStream({
+            remotePeerId: call.peer,
+            source: SOURCE_SCREEN,
+            incomingStream,
+          });
+        });
+
+        call.on("error", (err) => {
+          console.error("[network/comms] incoming screenshare call error", err);
+          screenShareCallsRef.current.delete(call.peer);
+          if (streamKeyRef.current) {
+            removeRemoteMediaStreamIfMatches(streamKeyRef.current);
+          }
+        });
+
+        call.on("close", () => {
+          console.log("[network/comms] incoming screenshare call closed");
+          screenShareCallsRef.current.delete(call.peer);
+          if (streamKeyRef.current) {
+            removeRemoteMediaStreamIfMatches(streamKeyRef.current);
+          }
+        });
+        return; // Early return for screenshare
+      }
+
+      // Handle camera calls with existing logic
+      call.answer(cameraStream || undefined);
       inboundCallsRef.current[`${call.peer}:${call.connectionId || Date.now()}:${source}`] = call;
 
       const stopStats = startMediaStatsLogger({
@@ -799,17 +918,14 @@ export default function NetworkCommsOverlay() {
     return () => {
       peer.off("call", onCall);
     };
-  }, [cameraStream, peer, pushDebugEvent, registerIncomingStream, removeRemoteMediaStreamIfMatches]);
+  }, [cameraStream, screenStream, peer, pushDebugEvent, registerIncomingStream, removeRemoteMediaStreamIfMatches]);
 
   useEffect(() => {
     if (!cameraStream) return;
     connectMediaCallsForSource(cameraStream, SOURCE_CAMERA);
   }, [cameraStream, connectMediaCallsForSource, connectedPeerIds]);
 
-  useEffect(() => {
-    if (!screenStream) return;
-    connectMediaCallsForSource(screenStream, SOURCE_SCREEN);
-  }, [connectMediaCallsForSource, connectedPeerIds, screenStream]);
+  // Screenshare is now handled directly in startScreenShare - no separate effect needed
 
 
   useEffect(() => {
@@ -866,6 +982,7 @@ export default function NetworkCommsOverlay() {
       });
       Object.values(outboundCallsRef.current).forEach((call) => call?.close());
       Object.values(inboundCallsRef.current).forEach((call) => call?.close());
+      screenShareCallsRef.current.forEach((call) => call?.close());
       cameraStream?.getTracks().forEach((track) => track.stop());
       screenStream?.getTracks().forEach((track) => track.stop());
     };
@@ -998,6 +1115,7 @@ export default function NetworkCommsOverlay() {
                   type="button"
                   style={controlButtonStyle({ active: false })}
                   onClick={startScreenShare}
+                  disabled={connectedPeerIds.length === 0}
                 >
                   Present now
                 </button>
