@@ -8,6 +8,16 @@ const MAX_MESSAGE_LENGTH = 500;
 
 const SOURCE_CAMERA = "camera";
 const SOURCE_SCREEN = "screen";
+const MEDIA_STATS_POLL_INTERVAL_MS = 2000;
+
+const getPeerConnectionFromCall = (call) => call?.peerConnection || call?._pc || null;
+
+const getNetworkPathLabel = (candidatePair, localCandidate, remoteCandidate) => {
+  if (!candidatePair) return "unknown";
+  const candidateType = localCandidate?.candidateType || remoteCandidate?.candidateType || "unknown";
+  const transport = candidatePair.protocol || localCandidate?.protocol || remoteCandidate?.protocol || "?";
+  return `${candidateType}/${transport}`;
+};
 
 const getCameraErrorMessage = (error) => {
   if (!error) return "We couldn't access your camera right now.";
@@ -273,6 +283,7 @@ export default function NetworkCommsOverlay() {
 
   const outboundCallsRef = useRef({});
   const inboundCallsRef = useRef({});
+  const mediaStatsIntervalsRef = useRef({});
   const chatScrollRef = useRef(null);
 
   const connectedPeerIds = useMemo(() => Object.keys(activeConnections), [activeConnections]);
@@ -313,6 +324,150 @@ export default function NetworkCommsOverlay() {
       throw new Error(getCameraErrorMessage(error), { cause: error });
     }
   }, [cameraStream]);
+
+  const stopMediaStatsLogger = useCallback((statsKey) => {
+    const handle = mediaStatsIntervalsRef.current[statsKey];
+    if (!handle) return;
+    clearInterval(handle);
+    delete mediaStatsIntervalsRef.current[statsKey];
+  }, []);
+
+  const startMediaStatsLogger = useCallback(
+    ({ call, remotePeerId, source, direction }) => {
+      const statsKey = `${direction}:${remotePeerId}:${source}:${call?.connectionId || "no-connection-id"}`;
+      stopMediaStatsLogger(statsKey);
+
+      const pc = getPeerConnectionFromCall(call);
+      if (!pc || typeof pc.getStats !== "function") {
+        pushDebugEvent("pc unavailable for stats", { remotePeerId, source, direction });
+        return;
+      }
+
+      const pollStats = async () => {
+        try {
+          const stats = await pc.getStats();
+          let selectedPair = null;
+          let localCandidate = null;
+          let remoteCandidate = null;
+          let inboundVideo = null;
+          let outboundVideo = null;
+          let trackReport = null;
+
+          stats.forEach((report) => {
+            if (report.type === "transport" && report.selectedCandidatePairId && !selectedPair) {
+              selectedPair = stats.get(report.selectedCandidatePairId) || null;
+            }
+            if (report.type === "candidate-pair" && report.selected && !selectedPair) {
+              selectedPair = report;
+            }
+            if (report.type === "inbound-rtp" && report.kind === "video" && !inboundVideo) {
+              inboundVideo = report;
+            }
+            if (report.type === "outbound-rtp" && report.kind === "video" && !outboundVideo) {
+              outboundVideo = report;
+            }
+            if (report.type === "track" && report.kind === "video" && !trackReport) {
+              trackReport = report;
+            }
+          });
+
+          if (selectedPair) {
+            localCandidate = stats.get(selectedPair.localCandidateId) || null;
+            remoteCandidate = stats.get(selectedPair.remoteCandidateId) || null;
+          }
+
+          pushDebugEvent("pc stats", {
+            remotePeerId,
+            source,
+            direction,
+            iceConnectionState: pc.iceConnectionState,
+            connectionState: pc.connectionState,
+            networkPath: getNetworkPathLabel(selectedPair, localCandidate, remoteCandidate),
+            selectedCandidatePair: selectedPair
+              ? {
+                  state: selectedPair.state,
+                  currentRoundTripTime: selectedPair.currentRoundTripTime,
+                  availableOutgoingBitrate: selectedPair.availableOutgoingBitrate,
+                  availableIncomingBitrate: selectedPair.availableIncomingBitrate,
+                  bytesSent: selectedPair.bytesSent,
+                  bytesReceived: selectedPair.bytesReceived,
+                  localCandidateType: localCandidate?.candidateType,
+                  remoteCandidateType: remoteCandidate?.candidateType,
+                  localAddress: localCandidate?.address,
+                  remoteAddress: remoteCandidate?.address,
+                }
+              : null,
+            inboundVideo: inboundVideo
+              ? {
+                  packetsReceived: inboundVideo.packetsReceived,
+                  packetsLost: inboundVideo.packetsLost,
+                  framesReceived: inboundVideo.framesReceived,
+                  framesDecoded: inboundVideo.framesDecoded,
+                  framesDropped: inboundVideo.framesDropped,
+                  keyFramesDecoded: inboundVideo.keyFramesDecoded,
+                  decoderImplementation: inboundVideo.decoderImplementation,
+                }
+              : null,
+            outboundVideo: outboundVideo
+              ? {
+                  packetsSent: outboundVideo.packetsSent,
+                  bytesSent: outboundVideo.bytesSent,
+                  framesSent: outboundVideo.framesSent,
+                  frameWidth: outboundVideo.frameWidth,
+                  frameHeight: outboundVideo.frameHeight,
+                  qualityLimitationReason: outboundVideo.qualityLimitationReason,
+                }
+              : null,
+            videoTrack: trackReport
+              ? {
+                  frameWidth: trackReport.frameWidth,
+                  frameHeight: trackReport.frameHeight,
+                  framesReceived: trackReport.framesReceived,
+                  framesDecoded: trackReport.framesDecoded,
+                  framesDropped: trackReport.framesDropped,
+                }
+              : null,
+          });
+        } catch (error) {
+          pushDebugEvent("pc stats failed", {
+            remotePeerId,
+            source,
+            direction,
+            message: error?.message || String(error),
+          });
+        }
+      };
+
+      const logIceState = () => {
+        pushDebugEvent("pc state", {
+          remotePeerId,
+          source,
+          direction,
+          iceConnectionState: pc.iceConnectionState,
+          connectionState: pc.connectionState,
+          signalingState: pc.signalingState,
+          iceGatheringState: pc.iceGatheringState,
+        });
+      };
+
+      pc.addEventListener("iceconnectionstatechange", logIceState);
+      pc.addEventListener("connectionstatechange", logIceState);
+      pc.addEventListener("icegatheringstatechange", logIceState);
+
+      const intervalId = setInterval(pollStats, MEDIA_STATS_POLL_INTERVAL_MS);
+      mediaStatsIntervalsRef.current[statsKey] = intervalId;
+
+      pollStats();
+
+      return () => {
+        pc.removeEventListener("iceconnectionstatechange", logIceState);
+        pc.removeEventListener("connectionstatechange", logIceState);
+        pc.removeEventListener("icegatheringstatechange", logIceState);
+        stopMediaStatsLogger(statsKey);
+      };
+    },
+    [pushDebugEvent, stopMediaStatsLogger]
+  );
 
   const teardownOutboundCall = useCallback((callKey) => {
     const existingCall = outboundCallsRef.current[callKey];
@@ -397,8 +552,16 @@ export default function NetworkCommsOverlay() {
         outboundCallsRef.current[callKey] = call;
         pushDebugEvent("outbound call created", { remotePeerId, source, callKey });
 
+        const stopStats = startMediaStatsLogger({
+          call,
+          remotePeerId,
+          source,
+          direction: "outbound",
+        });
+
         const teardown = () => {
           pushDebugEvent("outbound call teardown", { remotePeerId, source, callKey });
+          stopStats?.();
           delete outboundCallsRef.current[callKey];
         };
 
@@ -409,13 +572,7 @@ export default function NetworkCommsOverlay() {
         });
       });
     },
-    [
-      buildCallKey,
-      connectedPeerIds,
-      peer,
-      peerId,
-      pushDebugEvent,
-    ]
+    [buildCallKey, connectedPeerIds, peer, peerId, pushDebugEvent, startMediaStatsLogger]
   );
 
   const enableDevices = useCallback(async () => {
@@ -507,7 +664,32 @@ export default function NetworkCommsOverlay() {
       call.answer();
       inboundCallsRef.current[`${call.peer}:${call.connectionId || Date.now()}:${source}`] = call;
 
+      const stopStats = startMediaStatsLogger({
+        call,
+        remotePeerId: call.peer,
+        source,
+        direction: "inbound",
+      });
+
       call.on("stream", (incomingStream) => {
+        incomingStream.getVideoTracks().forEach((track) => {
+          const trackState = () => {
+            pushDebugEvent("remote video track state", {
+              remotePeerId: call.peer,
+              source,
+              trackId: track.id,
+              enabled: track.enabled,
+              muted: track.muted,
+              readyState: track.readyState,
+            });
+          };
+
+          track.addEventListener("mute", trackState);
+          track.addEventListener("unmute", trackState);
+          track.addEventListener("ended", trackState);
+          trackState();
+        });
+
         streamKeyRef.current = registerIncomingStream({
           remotePeerId: call.peer,
           source,
@@ -524,6 +706,7 @@ export default function NetworkCommsOverlay() {
         if (streamKeyRef.current) {
           removeRemoteMediaStreamIfMatches(streamKeyRef.current);
         }
+        stopStats?.();
       };
 
       call.on("close", teardown);
@@ -596,12 +779,15 @@ export default function NetworkCommsOverlay() {
 
   useEffect(() => {
     return () => {
+      Object.keys(mediaStatsIntervalsRef.current).forEach((statsKey) => {
+        stopMediaStatsLogger(statsKey);
+      });
       Object.values(outboundCallsRef.current).forEach((call) => call?.close());
       Object.values(inboundCallsRef.current).forEach((call) => call?.close());
       cameraStream?.getTracks().forEach((track) => track.stop());
       screenStream?.getTracks().forEach((track) => track.stop());
     };
-  }, [cameraStream, screenStream]);
+  }, [cameraStream, screenStream, stopMediaStatsLogger]);
 
   const sendMessage = useCallback(() => {
     const text = pendingMessage.trim().slice(0, MAX_MESSAGE_LENGTH);
