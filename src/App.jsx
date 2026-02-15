@@ -22,14 +22,21 @@ const EcctrlJoystickControls = () => {
 
 function App() {
   const currentSceneId = useSceneStore((state) => state.currentSceneId);
+  const currentSceneEntry = useSceneStore((state) =>
+    state.scenes.find((scene) => scene.id === state.currentSceneId)
+  );
+
+  const HtmlSceneComponent =
+    currentSceneEntry?.renderer === "html" ? currentSceneEntry.scene : null;
 
   return (
     <>
       <Leva hidden />
       <EcctrlJoystickControls />
       <ThreeCanvas />
-      <NetworkingGateway />
-      <NetworkCommsOverlay />
+      {HtmlSceneComponent ? <HtmlSceneComponent /> : null}
+      {currentSceneId !== "webrtcScreenShareLab" && <NetworkingGateway />}
+      {currentSceneId !== "webrtcScreenShareLab" && <NetworkCommsOverlay />}
       {currentSceneId === "rpg" && <RpgHud />}
     </>
   );
