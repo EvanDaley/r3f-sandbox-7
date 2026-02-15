@@ -24,55 +24,75 @@ const overlayStyles = {
     position: "fixed",
     left: 12,
     bottom: 68,
-    width: 980,
-    maxWidth: "calc(100vw - 24px)",
-    height: "min(640px, calc(100vh - 120px))",
     zIndex: 55,
     background: "rgba(8, 10, 19, 0.94)",
     border: "1px solid rgba(255,255,255,0.18)",
     borderRadius: 16,
     color: "white",
     display: "grid",
-    gridTemplateColumns: "2fr minmax(280px, 1fr)",
+    gridTemplateColumns: "1fr auto",
     overflow: "hidden",
     boxShadow: "0 20px 45px rgba(0,0,0,0.45)",
     backdropFilter: "blur(12px)",
   },
+  resizeHandle: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: "24px",
+    height: "24px",
+    cursor: "nwse-resize",
+    zIndex: 100,
+    background: "rgba(255,255,255,0.1)",
+    borderBottomLeftRadius: 16,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+    padding: "4px",
+  },
   stage: {
-    display: "grid",
-    gridTemplateRows: "1fr auto",
+    display: "flex",
+    flexDirection: "column",
     minHeight: 0,
     borderRight: "1px solid rgba(255,255,255,0.12)",
+    overflow: "hidden",
   },
   videoArea: {
+    flex: 1,
     minHeight: 0,
-    display: "grid",
-    gridTemplateRows: "minmax(0, 2fr) minmax(132px, 1fr)",
+    display: "flex",
+    flexDirection: "column",
     gap: 10,
     padding: 12,
   },
   featuredTile: {
+    flex: 1,
+    minHeight: 0,
     borderRadius: 12,
     background: "#06070d",
     overflow: "hidden",
     border: "1px solid rgba(255,255,255,0.16)",
-    minHeight: 220,
     position: "relative",
   },
   videoGrid: {
-    minHeight: 0,
-    overflow: "auto",
-    display: "grid",
+    height: 120,
+    minHeight: 120,
+    overflowX: "auto",
+    overflowY: "hidden",
+    display: "flex",
     gap: 10,
-    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-    alignContent: "start",
+    padding: "4px 0",
+    flexDirection: "row",
   },
   tile: {
-    borderRadius: 12,
+    borderRadius: 8,
     background: "#07080e",
     overflow: "hidden",
     border: "1px solid rgba(255,255,255,0.12)",
-    minHeight: 110,
+    width: 160,
+    minWidth: 160,
+    height: 90,
+    flexShrink: 0,
     position: "relative",
     cursor: "pointer",
   },
@@ -161,16 +181,20 @@ function VideoTile({ label, subtitle, stream, muted, onClick, isActive, style })
     }
   }, [label, stream, subtitle]);
 
+  // Check if this is a featured tile (has flex: 1 in style)
+  const isFeaturedTile = style && (style.flex === 1 || style.flex === "1");
+  
   return (
     <div
       style={{
-        ...overlayStyles.tile,
+        ...(isFeaturedTile ? {} : overlayStyles.tile), // Don't apply tile styles to featured tile
         ...(style || {}),
-        border: isActive ? "1px solid rgba(101,149,255,0.9)" : (style?.border || overlayStyles.tile.border),
+        border: isActive ? "1px solid rgba(101,149,255,0.9)" : (style?.border || (isFeaturedTile ? "1px solid rgba(255,255,255,0.16)" : overlayStyles.tile.border)),
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        ...(isFeaturedTile ? { width: "100%", height: "100%" } : {}), // Featured tile should fill container
       }}
       onClick={onClick}
       role="button"
@@ -244,6 +268,8 @@ export default function CommsOverlay() {
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState("");
   const [featuredStream, setFeaturedStream] = useState(null);
+  const [panelSize, setPanelSize] = useState({ width: 980, height: 640 });
+  const [isParticipantsCollapsed, setIsParticipantsCollapsed] = useState(false);
 
   const activeCallsRef = useRef(new Map());
   const outgoingCallsRef = useRef(new Set()); // Track which calls we initiated
@@ -543,32 +569,60 @@ export default function CommsOverlay() {
     ? "Camera"
     : null;
 
-  // Available streams for the grid (screen shares and cameras)
+  // Available streams for the grid (screen shares and cameras) - always show all streams
   const gridStreams = [];
   
-  // Add local screen share if not featured
-  if (localStream && !featuredStream && featuredStreamToShow !== localStream) {
+  // Add local screen share (always show, even if featured)
+  if (localStream) {
     gridStreams.push({ stream: localStream, label: "You", subtitle: "Screen", type: "screen" });
   }
   
-  // Add remote screen share if not featured
-  if (remoteStream && remoteStream !== featuredStream && featuredStreamToShow !== remoteStream) {
+  // Add remote screen share (always show, even if featured)
+  if (remoteStream) {
     gridStreams.push({ stream: remoteStream, label: connectedPeerId?.slice(0, 8) || "Remote", subtitle: "Screen", type: "screen" });
   }
   
-  // Add local camera if not featured
-  if (localCameraStream && featuredStreamToShow !== localCameraStream) {
+  // Add local camera (always show, even if featured)
+  if (localCameraStream) {
     gridStreams.push({ stream: localCameraStream, label: "You", subtitle: "Camera", type: "camera" });
   }
   
-  // Add remote camera streams
+  // Add remote camera streams (always show, even if featured)
   remoteCameraStreams.forEach((stream, peerId) => {
-    if (featuredStreamToShow !== stream) {
-      gridStreams.push({ stream, label: peerId.slice(0, 8) || "Remote", subtitle: "Camera", type: "camera" });
-    }
+    gridStreams.push({ stream, label: peerId.slice(0, 8) || "Remote", subtitle: "Camera", type: "camera" });
   });
 
   const canShare = connectedPeerId && peer && !isSharing;
+
+  // Resize handler
+  const resizeRef = useRef(null);
+  const isResizingRef = useRef(false);
+
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = panelSize.width;
+    const startHeight = panelSize.height;
+
+    const handleMouseMove = (e) => {
+      if (!isResizingRef.current) return;
+      const newWidth = Math.max(400, Math.min(window.innerWidth - 24, startWidth + (e.clientX - startX)));
+      // Invert Y calculation since panel is bottom-anchored - dragging down should increase height
+      const newHeight = Math.max(300, Math.min(window.innerHeight - 88, startHeight - (e.clientY - startY)));
+      setPanelSize({ width: newWidth, height: newHeight });
+    };
+
+    const handleMouseUp = () => {
+      isResizingRef.current = false;
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, [panelSize]);
 
   return (
     <>
@@ -577,7 +631,29 @@ export default function CommsOverlay() {
       </button>
 
       {isOpen && (
-        <div style={overlayStyles.root}>
+        <div 
+          style={{
+            ...overlayStyles.root,
+            width: `${panelSize.width}px`,
+            height: `${panelSize.height}px`,
+            maxWidth: "calc(100vw - 24px)",
+            maxHeight: "calc(100vh - 88px)",
+            gridTemplateColumns: isParticipantsCollapsed ? "1fr" : "1fr auto",
+          }}
+        >
+          <div
+            ref={resizeRef}
+            style={overlayStyles.resizeHandle}
+            onMouseDown={handleMouseDown}
+            title="Drag to resize"
+          >
+            <div style={{
+              width: "12px",
+              height: "12px",
+              borderRight: "2px solid rgba(255,255,255,0.4)",
+              borderBottom: "2px solid rgba(255,255,255,0.4)",
+            }} />
+          </div>
           <section style={overlayStyles.stage}>
             <div style={overlayStyles.videoArea}>
               <div style={overlayStyles.featuredTile}>
@@ -587,7 +663,16 @@ export default function CommsOverlay() {
                     muted={featuredStreamToShow === localStream || featuredStreamToShow === localCameraStream}
                     label={featuredLabel}
                     subtitle={featuredSubtitle}
-                    onClick={() => setFeaturedStream(null)}
+                    onClick={() => {
+                      // Cycle to next stream or clear if no other streams
+                      if (gridStreams.length > 1) {
+                        const currentIndex = gridStreams.findIndex(item => item.stream === featuredStreamToShow);
+                        const nextIndex = (currentIndex + 1) % gridStreams.length;
+                        setFeaturedStream(gridStreams[nextIndex].stream);
+                      } else {
+                        setFeaturedStream(null);
+                      }
+                    }}
                     isActive
                     style={overlayStyles.featuredTile}
                   />
@@ -599,29 +684,26 @@ export default function CommsOverlay() {
               </div>
 
               <div style={overlayStyles.videoGrid}>
-                {gridStreams.length === 0 && (
-                  <div style={{ opacity: 0.65, fontSize: 12, padding: "6px 4px" }}>
+                {gridStreams.length === 0 ? (
+                  <div style={{ opacity: 0.65, fontSize: 12, padding: "6px 4px", alignSelf: "center", width: "100%", textAlign: "center" }}>
                     Remote feeds will appear here when another participant shares their screen or camera.
                   </div>
-                )}
-                {gridStreams.map((item, idx) => (
-                  <VideoTile
-                    key={`${item.type}-${item.label}-${idx}`}
-                    stream={item.stream}
-                    muted={item.stream === localStream || item.stream === localCameraStream}
-                    label={item.label}
-                    subtitle={item.subtitle}
-                    onClick={() => {
-                      // Toggle featured stream - if already featured, unfeature it
-                      if (featuredStreamToShow === item.stream) {
-                        setFeaturedStream(null);
-                      } else {
+                ) : (
+                  gridStreams.map((item, idx) => (
+                    <VideoTile
+                      key={`${item.type}-${item.label}-${idx}`}
+                      stream={item.stream}
+                      muted={item.stream === localStream || item.stream === localCameraStream}
+                      label={item.label}
+                      subtitle={item.subtitle}
+                      onClick={() => {
+                        // Set as featured stream (thumbnails stay in grid)
                         setFeaturedStream(item.stream);
-                      }
-                    }}
-                    isActive={featuredStreamToShow === item.stream}
-                  />
-                ))}
+                      }}
+                      isActive={featuredStreamToShow === item.stream}
+                    />
+                  ))
+                )}
               </div>
             </div>
 
@@ -683,11 +765,20 @@ export default function CommsOverlay() {
                     </button>
                   </>
                 )}
+                <button
+                  type="button"
+                  style={controlButtonStyle({ active: !isParticipantsCollapsed })}
+                  onClick={() => setIsParticipantsCollapsed(!isParticipantsCollapsed)}
+                  title={isParticipantsCollapsed ? "Show details" : "Hide details"}
+                >
+                  {isParticipantsCollapsed ? "Show Details" : "Hide Details"}
+                </button>
               </div>
             </div>
           </section>
 
-          <aside style={overlayStyles.rightPanel}>
+          {!isParticipantsCollapsed && (
+            <aside style={overlayStyles.rightPanel}>
             <h3 style={overlayStyles.sectionTitle}>Participants</h3>
             <div style={overlayStyles.participants}>
               <div><strong>Total:</strong> {connectedPeerIds.length + 1}</div>
@@ -730,6 +821,7 @@ export default function CommsOverlay() {
               </div>
             </div>
           </aside>
+          )}
         </div>
       )}
     </>
