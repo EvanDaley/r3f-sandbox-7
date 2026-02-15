@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('rpg scene boots and player can move', async ({ page }) => {
+test('tutorial scene boots and player can move', async ({ page }) => {
   await page.goto('/');
 
   await page.waitForFunction(() => {
