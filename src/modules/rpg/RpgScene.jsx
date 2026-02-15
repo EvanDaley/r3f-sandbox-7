@@ -10,6 +10,7 @@ import useNearbyInteractables from './hooks/useNearbyInteractables';
 import useRpgProgressionStore from './stores/useRpgProgressionStore';
 import ProgressionSystem from './systems/ProgressionSystem';
 import NetworkColorBox from './components/NetworkColorBox';
+import { ParticleEffectsProvider } from '@/support_modules/particle_effects';
 
 function PlayerCharacter({ controllerRef }) {
   return (
@@ -102,35 +103,37 @@ export default function RpgScene() {
       <ambientLight intensity={0.45} />
       <directionalLight castShadow position={[8, 12, 6]} intensity={1.3} shadow-mapSize={[2048, 2048]} />
 
-      <Physics timeStep='vary'>
-        <KeyboardControls map={RPG_KEYBOARD_MAP}>
-          <PlayerCharacter controllerRef={controllerRef} />
-        </KeyboardControls>
+      <ParticleEffectsProvider>
+        <Physics timeStep='vary'>
+          <KeyboardControls map={RPG_KEYBOARD_MAP}>
+            <PlayerCharacter controllerRef={controllerRef} />
+          </KeyboardControls>
 
-        <ProgressionSystem
-          controllerRef={controllerRef}
-          trainingStations={trainingStations}
-          inputRef={inputRef}
-          nearbyInteractableIds={nearbyInteractableIds}
-        />
-
-        <RigidBody type='fixed' colliders='cuboid' position={[0, -0.15, 0]}>
-          <mesh receiveShadow>
-            <boxGeometry args={[30, 0.3, 30]} />
-            <meshStandardMaterial color='#202737' roughness={0.95} metalness={0.1} />
-          </mesh>
-        </RigidBody>
-
-        {trainingStations.map((station) => (
-          <TrainingStation
-            key={station.id}
-            station={station}
-            showInteractPrompt={nearbyInteractableIds.has(station.id)}
+          <ProgressionSystem
+            controllerRef={controllerRef}
+            trainingStations={trainingStations}
+            inputRef={inputRef}
+            nearbyInteractableIds={nearbyInteractableIds}
           />
-        ))}
 
-        {/* <NetworkColorBox /> */}
-      </Physics>
+          <RigidBody type='fixed' colliders='cuboid' position={[0, -0.15, 0]}>
+            <mesh receiveShadow>
+              <boxGeometry args={[30, 0.3, 30]} />
+              <meshStandardMaterial color='#202737' roughness={0.95} metalness={0.1} />
+            </mesh>
+          </RigidBody>
+
+          {trainingStations.map((station) => (
+            <TrainingStation
+              key={station.id}
+              station={station}
+              showInteractPrompt={nearbyInteractableIds.has(station.id)}
+            />
+          ))}
+
+          {/* <NetworkColorBox /> */}
+        </Physics>
+      </ParticleEffectsProvider>
     </>
   );
 }

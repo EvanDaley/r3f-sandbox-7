@@ -24,15 +24,18 @@ export const createRpgProgressionStore = (config) => {
   return create((set, get) => ({
     ...initialState,
     lastAction: 'Welcome, adventurer.',
-    addExperience: (skillId, amount, source = 'action') => {
+    lastExperienceEvent: null,
+    addExperience: (skillId, amount, source = 'action', metadata = {}) => {
       const state = get();
       const skills = state.skills.map((skill) => (
         skill.id === skillId ? applySkillExperience(skill, amount) : skill
       ));
 
       const updatedState = withTotals({ ...state, skills });
+      const previousTarget = state.skills.find((skill) => skill.id === skillId);
       const target = updatedState.skills.find((skill) => skill.id === skillId);
       const gain = Math.max(0, amount);
+      const levelsGained = target && previousTarget ? Math.max(0, target.level - previousTarget.level) : 0;
       const message = target
         ? `${target.name} +${gain.toFixed(1)}xp from ${source}`
         : state.lastAction;
@@ -40,6 +43,17 @@ export const createRpgProgressionStore = (config) => {
       set({
         ...updatedState,
         lastAction: message,
+        lastExperienceEvent: target
+          ? {
+            id: `${Date.now()}-${skillId}-${Math.random().toString(36).slice(2, 8)}`,
+            skillId,
+            source,
+            gain,
+            levelsGained,
+            level: target.level,
+            position: metadata.position ?? null,
+          }
+          : state.lastExperienceEvent,
       });
     },
     resetProgression: () => {
@@ -47,6 +61,7 @@ export const createRpgProgressionStore = (config) => {
       set({
         ...resetState,
         lastAction: 'Progress reset.',
+        lastExperienceEvent: null,
       });
     },
     getSkillById: (skillId) => get().skills.find((skill) => skill.id === skillId),
