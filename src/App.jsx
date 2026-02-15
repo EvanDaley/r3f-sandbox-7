@@ -22,14 +22,15 @@ const EcctrlJoystickControls = () => {
 
 function App() {
   const currentSceneId = useSceneStore((state) => state.currentSceneId);
+  const isWebRtcLab = currentSceneId === "webrtcHtmlLab";
 
   return (
     <>
       <Leva hidden />
-      <EcctrlJoystickControls />
+      {!isWebRtcLab && <EcctrlJoystickControls />}
       <ThreeCanvas />
-      <NetworkingGateway />
-      <NetworkCommsOverlay />
+      {!isWebRtcLab && <NetworkingGateway />}
+      {!isWebRtcLab && <NetworkCommsOverlay />}
       {currentSceneId === "rpg" && <RpgHud />}
     </>
   );
