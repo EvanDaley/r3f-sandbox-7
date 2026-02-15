@@ -8,6 +8,16 @@ const MAX_MESSAGE_LENGTH = 500;
 
 const SOURCE_CAMERA = "camera";
 const SOURCE_SCREEN = "screen";
+const MEDIA_STATS_POLL_INTERVAL_MS = 2000;
+
+const getPeerConnectionFromCall = (call) => call?.peerConnection || call?._pc || call?._negotiator?._pc || null;
+
+const getNetworkPathLabel = (candidatePair, localCandidate, remoteCandidate) => {
+  if (!candidatePair) return "unknown";
+  const candidateType = localCandidate?.candidateType || remoteCandidate?.candidateType || "unknown";
+  const transport = candidatePair.protocol || localCandidate?.protocol || remoteCandidate?.protocol || "?";
+  return `${candidateType}/${transport}`;
+};
 
 const getCameraErrorMessage = (error) => {
   if (!error) return "We couldn't access your camera right now.";
@@ -174,15 +184,39 @@ function StreamTile({ label, subtitle, stream, muted, onClick, isActive, style }
       const maybePromise = videoElement.play?.();
       if (maybePromise && typeof maybePromise.catch === "function") {
         maybePromise.catch((error) => {
-          console.warn("[network/comms] video play interrupted", { label, subtitle, error });
+          if (error?.name === "AbortError") {
+            return;
+          }
+          console.warn("[network/comms] video play interrupted", {
+            label,
+            subtitle,
+            errorName: error?.name,
+            errorMessage: error?.message,
+            paused: videoElement.paused,
+            readyState: videoElement.readyState,
+            networkState: videoElement.networkState,
+          });
         });
       }
     };
+
+    const handleTrackStateChange = () => {
+      attemptPlay();
+    };
+
+    stream?.getTracks().forEach((track) => {
+      track.addEventListener("unmute", handleTrackStateChange);
+      track.addEventListener("ended", handleTrackStateChange);
+    });
 
     videoElement.onloadedmetadata = attemptPlay;
     attemptPlay();
 
     return () => {
+      stream?.getTracks().forEach((track) => {
+        track.removeEventListener("unmute", handleTrackStateChange);
+        track.removeEventListener("ended", handleTrackStateChange);
+      });
       videoElement.onloadedmetadata = null;
     };
   }, [label, stream, subtitle]);
@@ -243,7 +277,6 @@ export default function NetworkCommsOverlay() {
   const remoteMediaStreams = useNetworkingStore((state) => state.remoteMediaStreams);
   const addChatMessage = useNetworkingStore((state) => state.addChatMessage);
   const addRemoteMediaStream = useNetworkingStore((state) => state.addRemoteMediaStream);
-  const removeRemoteMediaStream = useNetworkingStore((state) => state.removeRemoteMediaStream);
   const removeRemoteMediaStreamIfMatches = useNetworkingStore((state) => state.removeRemoteMediaStreamIfMatches);
   const removeRemoteMediaStreamsByPeer = useNetworkingStore((state) => state.removeRemoteMediaStreamsByPeer);
 
@@ -254,18 +287,20 @@ export default function NetworkCommsOverlay() {
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isRemoteAudioEnabled, setIsRemoteAudioEnabled] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [featuredTileId, setFeaturedTileId] = useState(null);
   const [debugEvents, setDebugEvents] = useState([]);
 
   const outboundCallsRef = useRef({});
   const inboundCallsRef = useRef({});
+  const inboundCallsBySourceRef = useRef({});
+  const mediaStatsIntervalsRef = useRef({});
   const chatScrollRef = useRef(null);
 
   const connectedPeerIds = useMemo(() => Object.keys(activeConnections), [activeConnections]);
 
   const buildCallKey = useCallback((remotePeerId, source) => `${remotePeerId}:${source}`, []);
-
 
   const pushDebugEvent = useCallback((label, details = {}) => {
     const entry = {
@@ -302,6 +337,178 @@ export default function NetworkCommsOverlay() {
     }
   }, [cameraStream]);
 
+  const stopMediaStatsLogger = useCallback((statsKey) => {
+    const handle = mediaStatsIntervalsRef.current[statsKey];
+    if (!handle) return;
+    clearInterval(handle);
+    delete mediaStatsIntervalsRef.current[statsKey];
+  }, []);
+
+  const startMediaStatsLogger = useCallback(
+    ({ call, remotePeerId, source, direction }) => {
+      const statsKey = `${direction}:${remotePeerId}:${source}:${call?.connectionId || "no-connection-id"}`;
+      stopMediaStatsLogger(statsKey);
+
+      let activePc = null;
+      let detachPcStateListeners = null;
+
+      const attachPcStateListeners = (pc) => {
+        const logIceState = () => {
+          pushDebugEvent("pc state", {
+            remotePeerId,
+            source,
+            direction,
+            iceConnectionState: pc.iceConnectionState,
+            connectionState: pc.connectionState,
+            signalingState: pc.signalingState,
+            iceGatheringState: pc.iceGatheringState,
+          });
+        };
+
+        pc.addEventListener("iceconnectionstatechange", logIceState);
+        pc.addEventListener("connectionstatechange", logIceState);
+        pc.addEventListener("icegatheringstatechange", logIceState);
+        logIceState();
+
+        return () => {
+          pc.removeEventListener("iceconnectionstatechange", logIceState);
+          pc.removeEventListener("connectionstatechange", logIceState);
+          pc.removeEventListener("icegatheringstatechange", logIceState);
+        };
+      };
+
+      const pollStats = async () => {
+        const pc = getPeerConnectionFromCall(call);
+        if (!pc || typeof pc.getStats !== "function") {
+          pushDebugEvent("pc unavailable for stats", {
+            remotePeerId,
+            source,
+            direction,
+            hasCall: !!call,
+            connectionId: call?.connectionId,
+          });
+          return;
+        }
+
+        if (activePc !== pc) {
+          detachPcStateListeners?.();
+          activePc = pc;
+          detachPcStateListeners = attachPcStateListeners(pc);
+          pushDebugEvent("pc attached", {
+            remotePeerId,
+            source,
+            direction,
+            connectionId: call?.connectionId,
+          });
+        }
+
+        try {
+          const stats = await pc.getStats();
+          let selectedPair = null;
+          let localCandidate = null;
+          let remoteCandidate = null;
+          let inboundVideo = null;
+          let outboundVideo = null;
+          let trackReport = null;
+
+          stats.forEach((report) => {
+            if (report.type === "transport" && report.selectedCandidatePairId && !selectedPair) {
+              selectedPair = stats.get(report.selectedCandidatePairId) || null;
+            }
+            if (report.type === "candidate-pair" && report.selected && !selectedPair) {
+              selectedPair = report;
+            }
+            if (report.type === "inbound-rtp" && report.kind === "video" && !inboundVideo) {
+              inboundVideo = report;
+            }
+            if (report.type === "outbound-rtp" && report.kind === "video" && !outboundVideo) {
+              outboundVideo = report;
+            }
+            if (report.type === "track" && report.kind === "video" && !trackReport) {
+              trackReport = report;
+            }
+          });
+
+          if (selectedPair) {
+            localCandidate = stats.get(selectedPair.localCandidateId) || null;
+            remoteCandidate = stats.get(selectedPair.remoteCandidateId) || null;
+          }
+
+          pushDebugEvent("pc stats", {
+            remotePeerId,
+            source,
+            direction,
+            iceConnectionState: pc.iceConnectionState,
+            connectionState: pc.connectionState,
+            networkPath: getNetworkPathLabel(selectedPair, localCandidate, remoteCandidate),
+            selectedCandidatePair: selectedPair
+              ? {
+                  state: selectedPair.state,
+                  currentRoundTripTime: selectedPair.currentRoundTripTime,
+                  availableOutgoingBitrate: selectedPair.availableOutgoingBitrate,
+                  availableIncomingBitrate: selectedPair.availableIncomingBitrate,
+                  bytesSent: selectedPair.bytesSent,
+                  bytesReceived: selectedPair.bytesReceived,
+                  localCandidateType: localCandidate?.candidateType,
+                  remoteCandidateType: remoteCandidate?.candidateType,
+                  localAddress: localCandidate?.address,
+                  remoteAddress: remoteCandidate?.address,
+                }
+              : null,
+            inboundVideo: inboundVideo
+              ? {
+                  packetsReceived: inboundVideo.packetsReceived,
+                  packetsLost: inboundVideo.packetsLost,
+                  framesReceived: inboundVideo.framesReceived,
+                  framesDecoded: inboundVideo.framesDecoded,
+                  framesDropped: inboundVideo.framesDropped,
+                  keyFramesDecoded: inboundVideo.keyFramesDecoded,
+                  decoderImplementation: inboundVideo.decoderImplementation,
+                }
+              : null,
+            outboundVideo: outboundVideo
+              ? {
+                  packetsSent: outboundVideo.packetsSent,
+                  bytesSent: outboundVideo.bytesSent,
+                  framesSent: outboundVideo.framesSent,
+                  frameWidth: outboundVideo.frameWidth,
+                  frameHeight: outboundVideo.frameHeight,
+                  qualityLimitationReason: outboundVideo.qualityLimitationReason,
+                }
+              : null,
+            videoTrack: trackReport
+              ? {
+                  frameWidth: trackReport.frameWidth,
+                  frameHeight: trackReport.frameHeight,
+                  framesReceived: trackReport.framesReceived,
+                  framesDecoded: trackReport.framesDecoded,
+                  framesDropped: trackReport.framesDropped,
+                }
+              : null,
+          });
+        } catch (error) {
+          pushDebugEvent("pc stats failed", {
+            remotePeerId,
+            source,
+            direction,
+            message: error?.message || String(error),
+          });
+        }
+      };
+
+      const intervalId = setInterval(pollStats, MEDIA_STATS_POLL_INTERVAL_MS);
+      mediaStatsIntervalsRef.current[statsKey] = intervalId;
+
+      pollStats();
+
+      return () => {
+        detachPcStateListeners?.();
+        stopMediaStatsLogger(statsKey);
+      };
+    },
+    [pushDebugEvent, stopMediaStatsLogger]
+  );
+
   const teardownOutboundCall = useCallback((callKey) => {
     const existingCall = outboundCallsRef.current[callKey];
     if (!existingCall) return;
@@ -319,6 +526,18 @@ export default function NetworkCommsOverlay() {
     ({ remotePeerId, source, incomingStream }) => {
       if (!incomingStream) return null;
       const streamId = `${remotePeerId}:${source}`;
+      const currentEntry = remoteMediaStreams[streamId];
+
+      if (currentEntry?.incomingStreamId === incomingStream.id) {
+        pushDebugEvent("remote stream unchanged", {
+          remotePeerId,
+          source,
+          streamId,
+          incomingStreamId: incomingStream.id,
+        });
+        return { streamId, incomingStreamId: incomingStream.id };
+      }
+
       pushDebugEvent("remote stream registered", {
         remotePeerId,
         source,
@@ -342,7 +561,7 @@ export default function NetworkCommsOverlay() {
       });
       return { streamId, incomingStreamId: incomingStream.id };
     },
-    [addRemoteMediaStream, pushDebugEvent]
+    [addRemoteMediaStream, pushDebugEvent, remoteMediaStreams]
   );
 
   const connectMediaCallsForSource = useCallback(
@@ -382,20 +601,20 @@ export default function NetworkCommsOverlay() {
           return;
         }
 
-        const streamKeyRef = { current: null };
         outboundCallsRef.current[callKey] = call;
         pushDebugEvent("outbound call created", { remotePeerId, source, callKey });
 
-        call.on("stream", (incomingStream) => {
-          streamKeyRef.current = registerIncomingStream({ remotePeerId, source, incomingStream });
+        const stopStats = startMediaStatsLogger({
+          call,
+          remotePeerId,
+          source,
+          direction: "outbound",
         });
 
         const teardown = () => {
           pushDebugEvent("outbound call teardown", { remotePeerId, source, callKey });
+          stopStats?.();
           delete outboundCallsRef.current[callKey];
-          if (streamKeyRef.current) {
-            removeRemoteMediaStreamIfMatches(streamKeyRef.current);
-          }
         };
 
         call.on("close", teardown);
@@ -405,7 +624,7 @@ export default function NetworkCommsOverlay() {
         });
       });
     },
-    [buildCallKey, connectedPeerIds, peer, peerId, pushDebugEvent, registerIncomingStream, removeRemoteMediaStreamIfMatches]
+    [buildCallKey, connectedPeerIds, peer, peerId, pushDebugEvent, startMediaStatsLogger]
   );
 
   const enableDevices = useCallback(async () => {
@@ -458,10 +677,6 @@ export default function NetworkCommsOverlay() {
   }, [buildCallKey, connectedPeerIds, screenStream, teardownOutboundCall]);
 
   const startScreenShare = useCallback(async () => {
-    if (!cameraStream) {
-      await enableDevices();
-    }
-
     try {
       const nextScreenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
@@ -483,7 +698,7 @@ export default function NetworkCommsOverlay() {
     } catch (error) {
       console.error("[network/comms] screen share denied/unavailable", error);
     }
-  }, [cameraStream, connectMediaCallsForSource, enableDevices, stopScreenShare]);
+  }, [connectMediaCallsForSource, stopScreenShare]);
 
   useEffect(() => {
     if (!peer) return undefined;
@@ -491,17 +706,67 @@ export default function NetworkCommsOverlay() {
     const onCall = (call) => {
       const source = call?.metadata?.source || SOURCE_CAMERA;
       const streamKeyRef = { current: null };
+      const inboundCallSourceKey = `${call?.peer || "unknown"}:${source}`;
+      const existingCallForSource = inboundCallsBySourceRef.current[inboundCallSourceKey];
+
+      if (existingCallForSource && existingCallForSource !== call) {
+        pushDebugEvent("duplicate inbound call for source", {
+          fromPeer: call?.peer,
+          source,
+          previousConnectionId: existingCallForSource.connectionId,
+          nextConnectionId: call?.connectionId,
+        });
+
+        try {
+          existingCallForSource.close();
+        } catch (error) {
+          console.warn("[network/comms] failed to close duplicate inbound call", {
+            inboundCallSourceKey,
+            error,
+          });
+        }
+      }
+
+      inboundCallsBySourceRef.current[inboundCallSourceKey] = call;
 
       pushDebugEvent("inbound call received", {
         fromPeer: call?.peer,
         source,
         hasCameraStream: !!cameraStream,
+        connectionId: call?.connectionId,
+        hasPeerConnection: !!getPeerConnectionFromCall(call),
+        callKeys: Object.keys(call || {}).slice(0, 12),
       });
 
-      call.answer(cameraStream || undefined);
+      call.answer(new MediaStream());
       inboundCallsRef.current[`${call.peer}:${call.connectionId || Date.now()}:${source}`] = call;
 
+      const stopStats = startMediaStatsLogger({
+        call,
+        remotePeerId: call.peer,
+        source,
+        direction: "inbound",
+      });
+
       call.on("stream", (incomingStream) => {
+        incomingStream.getVideoTracks().forEach((track) => {
+          const trackState = () => {
+            pushDebugEvent("remote video track state", {
+              remotePeerId: call.peer,
+              source,
+              trackId: track.id,
+              enabled: track.enabled,
+              muted: track.muted,
+              readyState: track.readyState,
+            });
+          };
+
+          track.addEventListener("mute", trackState);
+          track.addEventListener("unmute", trackState);
+          track.addEventListener("ended", trackState);
+          trackState();
+        });
+
         streamKeyRef.current = registerIncomingStream({
           remotePeerId: call.peer,
           source,
@@ -518,6 +783,12 @@ export default function NetworkCommsOverlay() {
         if (streamKeyRef.current) {
           removeRemoteMediaStreamIfMatches(streamKeyRef.current);
         }
+
+        if (inboundCallsBySourceRef.current[inboundCallSourceKey] === call) {
+          delete inboundCallsBySourceRef.current[inboundCallSourceKey];
+        }
+
+        stopStats?.();
       };
 
       call.on("close", teardown);
@@ -590,12 +861,15 @@ export default function NetworkCommsOverlay() {
 
   useEffect(() => {
     return () => {
+      Object.keys(mediaStatsIntervalsRef.current).forEach((statsKey) => {
+        stopMediaStatsLogger(statsKey);
+      });
       Object.values(outboundCallsRef.current).forEach((call) => call?.close());
       Object.values(inboundCallsRef.current).forEach((call) => call?.close());
       cameraStream?.getTracks().forEach((track) => track.stop());
       screenStream?.getTracks().forEach((track) => track.stop());
     };
-  }, [cameraStream, screenStream]);
+  }, [cameraStream, screenStream, stopMediaStatsLogger]);
 
   const sendMessage = useCallback(() => {
     const text = pendingMessage.trim().slice(0, MAX_MESSAGE_LENGTH);
@@ -684,7 +958,7 @@ export default function NetworkCommsOverlay() {
                   <StreamTile
                     key={tile.streamId}
                     stream={tile.stream}
-                    muted={false}
+                    muted={!isRemoteAudioEnabled || featuredTileId !== tile.streamId}
                     label={tile.peerId}
                     subtitle={tile.source === SOURCE_SCREEN ? "Screen" : "Camera"}
                     onClick={() => setFeaturedTileId((current) => (current === tile.streamId ? null : tile.streamId))}
@@ -724,7 +998,6 @@ export default function NetworkCommsOverlay() {
                   type="button"
                   style={controlButtonStyle({ active: false })}
                   onClick={startScreenShare}
-                  disabled={!cameraStream}
                 >
                   Present now
                 </button>
@@ -733,6 +1006,13 @@ export default function NetworkCommsOverlay() {
                   Stop presenting
                 </button>
               )}
+              <button
+                type="button"
+                style={controlButtonStyle({ active: isRemoteAudioEnabled })}
+                onClick={() => setIsRemoteAudioEnabled((current) => !current)}
+              >
+                {isRemoteAudioEnabled ? "Disable remote audio" : "Enable remote audio"}
+              </button>
             </div>
           </section>
 
