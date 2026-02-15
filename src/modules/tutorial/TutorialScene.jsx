@@ -4,12 +4,13 @@ import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import CharacterModel from '../third_person_blender_integrated/CharacterModel';
-import Ecctrl from '../third_person_controller/Ecctrl';
 import { RPG_KEYBOARD_MAP } from '../rpg/config/progressionConfig';
 import TrainingStation from '../rpg/components/TrainingStation';
 import useNearbyInteractables from '../rpg/hooks/useNearbyInteractables';
+import Ecctrl from '../third_person_controller/Ecctrl';
 
-const EXIT_TARGET = new THREE.Vector3(0, 0, -31);
+const SPAWN_POINT = new THREE.Vector3(0, 1.5, 20);
+const EXIT_TARGET = new THREE.Vector3(0, 0.8, -36);
 
 function PlayerCharacter({ controllerRef }) {
   return (
@@ -23,8 +24,9 @@ function PlayerCharacter({ controllerRef }) {
       autoBalanceDampingOnY={0.05}
       camInitDis={-6}
       camMaxDis={-10}
-      camCollisionOffset={0.8}
-      position={[0, 1.5, 8]}
+      camCollisionOffset={0.2}
+      camInitDir={{ x: -0.15, y: Math.PI }}
+      position={SPAWN_POINT.toArray()}
       ref={controllerRef}
     >
       <Suspense
@@ -41,62 +43,152 @@ function PlayerCharacter({ controllerRef }) {
   );
 }
 
+function RoomShell({ centerZ, title, instruction, color, doorToNext = true, doorToPrev = true }) {
+  const roomWidth = 18;
+  const roomLength = 14;
+  const wallHeight = 4;
+  const wallThickness = 0.5;
+  const doorwayWidth = 4;
+  const sideSegmentWidth = (roomWidth - doorwayWidth) / 2;
+
+  const frontZ = centerZ - roomLength / 2;
+  const backZ = centerZ + roomLength / 2;
+
+  return (
+    <group>
+      <RigidBody type='fixed' colliders='cuboid' position={[0, -0.15, centerZ]}>
+        <mesh receiveShadow>
+          <boxGeometry args={[roomWidth, 0.3, roomLength]} />
+          <meshStandardMaterial color='#1b2330' roughness={0.95} metalness={0.06} />
+        </mesh>
+      </RigidBody>
+
+      <RigidBody type='fixed' colliders='cuboid' position={[roomWidth / 2, wallHeight / 2, centerZ]}>
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[wallThickness, wallHeight, roomLength]} />
+          <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+        </mesh>
+      </RigidBody>
+      <RigidBody type='fixed' colliders='cuboid' position={[-roomWidth / 2, wallHeight / 2, centerZ]}>
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[wallThickness, wallHeight, roomLength]} />
+          <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+        </mesh>
+      </RigidBody>
+
+      {!doorToPrev ? (
+        <RigidBody type='fixed' colliders='cuboid' position={[0, wallHeight / 2, backZ]}>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[roomWidth, wallHeight, wallThickness]} />
+            <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+          </mesh>
+        </RigidBody>
+      ) : (
+        <>
+          <RigidBody type='fixed' colliders='cuboid' position={[-(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, backZ]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
+              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+            </mesh>
+          </RigidBody>
+          <RigidBody type='fixed' colliders='cuboid' position={[(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, backZ]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
+              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+            </mesh>
+          </RigidBody>
+        </>
+      )}
+
+      {!doorToNext ? (
+        <RigidBody type='fixed' colliders='cuboid' position={[0, wallHeight / 2, frontZ]}>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[roomWidth, wallHeight, wallThickness]} />
+            <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+          </mesh>
+        </RigidBody>
+      ) : (
+        <>
+          <RigidBody type='fixed' colliders='cuboid' position={[-(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, frontZ]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
+              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+            </mesh>
+          </RigidBody>
+          <RigidBody type='fixed' colliders='cuboid' position={[(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, frontZ]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
+              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+            </mesh>
+          </RigidBody>
+        </>
+      )}
+
+      <pointLight position={[0, 3, centerZ]} intensity={14} distance={26} color={color} />
+      <mesh position={[0, 3.75, centerZ]}>
+        <boxGeometry args={[8, 0.2, 0.6]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} toneMapped={false} />
+      </mesh>
+
+      <Text position={[0, 3.25, centerZ + 4]} fontSize={0.6} color='#e2e8f0' anchorX='center'>
+        {title}
+      </Text>
+      <Text position={[0, 2.7, centerZ + 4]} fontSize={0.32} color='#bfdbfe' anchorX='center'>
+        {instruction}
+      </Text>
+    </group>
+  );
+}
+
 function TutorialMovingPlatforms() {
   const sideMovePlatformRef = useRef();
   const verticalMovePlatformRef = useRef();
-  const rotatePlatformRef = useRef();
-  const quaternionRotation = useMemo(() => new THREE.Quaternion(), []);
-  const yRotationAxies = useMemo(() => new THREE.Vector3(0, 1, 0), []);
 
   useFrame((state) => {
     const time = state.clock.elapsedTime;
 
     sideMovePlatformRef.current?.setNextKinematicTranslation({
-      x: Math.sin(time * 0.8) * 2,
-      y: 0.5,
-      z: -8,
+      x: Math.sin(time * 0.9) * 2.8,
+      y: 1.1,
+      z: -19.5,
     });
 
     verticalMovePlatformRef.current?.setNextKinematicTranslation({
       x: 0,
-      y: Math.sin(time * 0.9) * 1.4 + 2.2,
-      z: -15,
+      y: Math.sin(time * 1.2) * 1.2 + 2,
+      z: -24,
     });
-
-    rotatePlatformRef.current?.setNextKinematicTranslation({
-      x: 0,
-      y: 3.6,
-      z: -22,
-    });
-
-    rotatePlatformRef.current?.setNextKinematicRotation(
-      quaternionRotation.setFromAxisAngle(yRotationAxies, time * 0.8)
-    );
   });
 
   return (
     <>
+      <RigidBody type='fixed' colliders='cuboid' position={[0, -2.6, -23]}>
+        <mesh receiveShadow>
+          <boxGeometry args={[18, 5, 12]} />
+          <meshStandardMaterial color='#0b1220' roughness={0.98} metalness={0.02} />
+        </mesh>
+      </RigidBody>
+
       <RigidBody type='kinematicPosition' ref={sideMovePlatformRef} colliders={false}>
-        <CuboidCollider args={[2.2, 0.2, 2.2]} />
+        <CuboidCollider args={[2, 0.2, 2]} />
         <mesh castShadow receiveShadow>
-          <boxGeometry args={[4.4, 0.4, 4.4]} />
+          <boxGeometry args={[4, 0.4, 4]} />
           <meshStandardMaterial color='#f5d782' />
         </mesh>
       </RigidBody>
 
       <RigidBody type='kinematicPosition' ref={verticalMovePlatformRef} colliders={false}>
-        <CuboidCollider args={[2.2, 0.2, 2.2]} />
+        <CuboidCollider args={[2, 0.2, 2]} />
         <mesh castShadow receiveShadow>
-          <boxGeometry args={[4.4, 0.4, 4.4]} />
-          <meshStandardMaterial color='#c8e6ff' />
+          <boxGeometry args={[4, 0.4, 4]} />
+          <meshStandardMaterial color='#93c5fd' />
         </mesh>
       </RigidBody>
 
-      <RigidBody type='kinematicPosition' ref={rotatePlatformRef} colliders={false}>
-        <CuboidCollider args={[2.2, 0.2, 2.2]} />
+      <RigidBody type='fixed' colliders='cuboid' position={[0, 3.1, -28.5]}>
         <mesh castShadow receiveShadow>
-          <boxGeometry args={[4.4, 0.4, 4.4]} />
-          <meshStandardMaterial color='#f8b4d9' />
+          <boxGeometry args={[6, 0.4, 4]} />
+          <meshStandardMaterial color='#86efac' roughness={0.7} />
         </mesh>
       </RigidBody>
     </>
@@ -116,6 +208,12 @@ function TutorialFlow({ controllerRef, nearbyInteractableIds, tutorialStations, 
 
     const translation = rigidBody.translation();
     playerPosition.set(translation.x, translation.y, translation.z);
+
+    if (translation.y < -8) {
+      rigidBody.setTranslation(SPAWN_POINT, true);
+      rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      return;
+    }
 
     if (!hasExited.current && playerPosition.distanceToSquared(EXIT_TARGET) <= 10) {
       hasExited.current = true;
@@ -164,16 +262,22 @@ export default function TutorialScene() {
     () =>
       [
         {
-          id: 'tutorialConsole',
-          name: 'Mission Console',
-          position: [-3.5, 0.75, 1.5],
+          id: 'movementBeacon',
+          name: 'Movement Beacon',
+          position: [-4, 0.75, 20],
           color: '#06d6a0',
         },
         {
-          id: 'tutorialCrate',
-          name: 'Supply Crate',
-          position: [3.5, 0.75, -2.5],
+          id: 'cameraBeacon',
+          name: 'Camera Beacon',
+          position: [4, 0.75, 4],
           color: '#f4a261',
+        },
+        {
+          id: 'jumpBeacon',
+          name: 'Jump Beacon',
+          position: [-3, 0.75, -12],
+          color: '#a78bfa',
         },
       ].map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
     []
@@ -230,10 +334,11 @@ export default function TutorialScene() {
 
   return (
     <>
-      <color attach='background' args={['#12171f']} />
-      <fog attach='fog' args={['#12171f', 16, 46]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight castShadow position={[8, 14, 4]} intensity={1.4} shadow-mapSize={[2048, 2048]} />
+      <color attach='background' args={['#0d1320']} />
+      <fog attach='fog' args={['#0d1320', 18, 72]} />
+      <ambientLight intensity={0.42} />
+      <hemisphereLight intensity={0.5} color='#dbeafe' groundColor='#1e293b' />
+      <directionalLight castShadow position={[10, 15, 12]} intensity={1.5} shadow-mapSize={[2048, 2048]} />
 
       <Physics timeStep='vary'>
         <KeyboardControls map={RPG_KEYBOARD_MAP}>
@@ -251,21 +356,44 @@ export default function TutorialScene() {
           }}
         />
 
-        <RigidBody type='fixed' colliders='cuboid' position={[0, -0.2, -8]}>
-          <mesh receiveShadow>
-            <boxGeometry args={[18, 0.4, 48]} />
-            <meshStandardMaterial color='#1d2530' roughness={0.92} metalness={0.08} />
-          </mesh>
-        </RigidBody>
-
-        <RigidBody type='fixed' colliders='cuboid' position={[0, 0.45, -28]}>
-          <mesh receiveShadow>
-            <boxGeometry args={[10, 0.9, 8]} />
-            <meshStandardMaterial color='#2b3342' roughness={0.86} metalness={0.15} />
-          </mesh>
-        </RigidBody>
+        <RoomShell
+          centerZ={20}
+          title='Room 1 · Movement'
+          instruction='Use WASD or Arrow Keys to move. Hold Shift to sprint.'
+          color='#34d399'
+          doorToPrev={false}
+        />
+        <RoomShell
+          centerZ={4}
+          title='Room 2 · Camera'
+          instruction='Hold middle mouse and move the mouse to orbit the camera.'
+          color='#60a5fa'
+        />
+        <RoomShell
+          centerZ={-12}
+          title='Room 3 · Jumping'
+          instruction='Press Space to jump and cross the moving platform path.'
+          color='#c084fc'
+          doorToNext={false}
+        />
 
         <TutorialMovingPlatforms />
+
+        <RigidBody type='fixed' colliders='cuboid' position={[0, 0.3, -36]}>
+          <mesh receiveShadow>
+            <boxGeometry args={[12, 0.6, 10]} />
+            <meshStandardMaterial color='#1f2a3f' roughness={0.8} metalness={0.14} />
+          </mesh>
+        </RigidBody>
+
+        <mesh position={[0, 2.5, -32.5]}>
+          <torusGeometry args={[2.3, 0.2, 18, 46]} />
+          <meshStandardMaterial color='#7dd3fc' emissive='#7dd3fc' emissiveIntensity={0.75} toneMapped={false} />
+        </mesh>
+
+        <Text position={[0, 3.1, -35.5]} fontSize={0.5} color='#e0f2fe' anchorX='center'>
+          Final Gate · Walk into the lit area to enter RPG World
+        </Text>
 
         {tutorialStations.map((station) => (
           <TrainingStation
@@ -275,29 +403,8 @@ export default function TutorialScene() {
           />
         ))}
 
-        <mesh position={[0, 2.4, 7.4]}>
-          <boxGeometry args={[12, 3.2, 0.2]} />
-          <meshStandardMaterial color='#80ed99' emissive='#80ed99' emissiveIntensity={0.2} transparent opacity={0.22} />
-        </mesh>
-
-        <Text position={[0, 3.9, 7.1]} fontSize={0.48} color='#e2e8f0' anchorX='center'>
-          Movement: WASD / Arrow Keys · Jump: Space · Sprint: Shift
-        </Text>
-
-        <Text position={[0, 3.1, 5.8]} fontSize={0.4} color='#a5b4fc' anchorX='center'>
-          Camera: Hold Middle Mouse + Move Mouse
-        </Text>
-
-        <Text position={[0, 3.2, -6]} fontSize={0.5} color='#fef08a' anchorX='center'>
-          Cross the moving platforms to continue
-        </Text>
-
-        <Text position={[0, 2.8, -28]} fontSize={0.55} color='#93c5fd' anchorX='center'>
-          Exit Gate → Walk here to enter RPG World
-        </Text>
-
         {lastInteractedLabel && (
-          <Html position={[0, 4.8, 2.8]} center distanceFactor={10}>
+          <Html position={[0, 5, 18]} center distanceFactor={10}>
             <div
               style={{
                 color: '#f8fafc',
