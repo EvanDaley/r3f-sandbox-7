@@ -10,7 +10,7 @@ const SOURCE_CAMERA = "camera";
 const SOURCE_SCREEN = "screen";
 const MEDIA_STATS_POLL_INTERVAL_MS = 2000;
 
-const getPeerConnectionFromCall = (call) => call?.peerConnection || call?._pc || null;
+const getPeerConnectionFromCall = (call) => call?.peerConnection || call?._pc || call?._negotiator?._pc || null;
 
 const getNetworkPathLabel = (candidatePair, localCandidate, remoteCandidate) => {
   if (!candidatePair) return "unknown";
@@ -184,7 +184,15 @@ function StreamTile({ label, subtitle, stream, muted, onClick, isActive, style }
       const maybePromise = videoElement.play?.();
       if (maybePromise && typeof maybePromise.catch === "function") {
         maybePromise.catch((error) => {
-          console.warn("[network/comms] video play interrupted", { label, subtitle, error });
+          console.warn("[network/comms] video play interrupted", {
+            label,
+            subtitle,
+            errorName: error?.name,
+            errorMessage: error?.message,
+            paused: videoElement.paused,
+            readyState: videoElement.readyState,
+            networkState: videoElement.networkState,
+          });
         });
       }
     };
@@ -659,9 +667,12 @@ export default function NetworkCommsOverlay() {
         fromPeer: call?.peer,
         source,
         hasCameraStream: !!cameraStream,
+        connectionId: call?.connectionId,
+        hasPeerConnection: !!getPeerConnectionFromCall(call),
+        callKeys: Object.keys(call || {}).slice(0, 12),
       });
 
-      call.answer();
+      call.answer(new MediaStream());
       inboundCallsRef.current[`${call.peer}:${call.connectionId || Date.now()}:${source}`] = call;
 
       const stopStats = startMediaStatsLogger({
