@@ -69,7 +69,7 @@ const overlayStyles = {
     height: "24px",
     cursor: "nwse-resize",
     zIndex: 100,
-    background: "rgba(255,255,255,0.1)",
+    background: "rgba(255,255,255,0.2)",
     borderBottomLeftRadius: 16,
     display: "flex",
     alignItems: "flex-end",
@@ -298,9 +298,12 @@ export default function CommsOverlay() {
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState("");
   const [featuredStream, setFeaturedStream] = useState(null);
-  const [panelSize, setPanelSize] = useState({ width: 980, height: 200 }); // Small default height
+
+  // Note that on the height we later SUBTRACT the height of the featured video area (400px)
+  const [panelSize, setPanelSize] = useState({ width: 356, height: 225 }); // Small default size
   const [isParticipantsCollapsed, setIsParticipantsCollapsed] = useState(true); // Hidden by default
   const [isFeaturedVideoVisible, setIsFeaturedVideoVisible] = useState(false); // Hidden by default
+  const [isThumbnailsVisible, setIsThumbnailsVisible] = useState(true); // Visible by default
 
   const activeCallsRef = useRef(new Map());
   const outgoingCallsRef = useRef(new Set()); // Track which calls we initiated
@@ -628,13 +631,23 @@ export default function CommsOverlay() {
   // Featured video height (approximate, accounts for padding and gaps)
   const FEATURED_VIDEO_HEIGHT = 400;
 
-  // Adjust panel height when featured video visibility changes
+  // Track previous featured video visibility to only adjust on actual changes
+  const prevFeaturedVideoVisibleRef = useRef(isFeaturedVideoVisible);
+
+  // Adjust panel height when featured video visibility changes (but not on initial mount)
   useEffect(() => {
+    // Skip adjustment on initial mount - respect the default height
+    if (prevFeaturedVideoVisibleRef.current === isFeaturedVideoVisible) {
+      return;
+    }
+
     setPanelSize((prev) => {
       const heightDelta = isFeaturedVideoVisible ? FEATURED_VIDEO_HEIGHT : -FEATURED_VIDEO_HEIGHT;
-      const newHeight = Math.max(200, Math.min(window.innerHeight - 88, prev.height + heightDelta));
+      const newHeight = Math.max(150, Math.min(window.innerHeight - 88, prev.height + heightDelta));
       return { ...prev, height: newHeight };
     });
+
+    prevFeaturedVideoVisibleRef.current = isFeaturedVideoVisible;
   }, [isFeaturedVideoVisible]);
 
   // Resize handler
@@ -651,7 +664,7 @@ export default function CommsOverlay() {
 
     const handleMouseMove = (e) => {
       if (!isResizingRef.current) return;
-      const newWidth = Math.max(400, Math.min(window.innerWidth - 24, startWidth + (e.clientX - startX)));
+      const newWidth = Math.max(300, Math.min(window.innerWidth - 24, startWidth + (e.clientX - startX)));
       // Invert Y calculation since panel is bottom-anchored - dragging down should increase height
       const newHeight = Math.max(150, Math.min(window.innerHeight - 88, startHeight - (e.clientY - startY)));
       setPanelSize({ width: newWidth, height: newHeight });
@@ -693,8 +706,8 @@ export default function CommsOverlay() {
             <div style={{
               width: "12px",
               height: "12px",
-              borderRight: "2px solid rgba(255,255,255,0.4)",
-              borderBottom: "2px solid rgba(255,255,255,0.4)",
+              borderRight: "2px solid rgba(255,255,255,0.7)",
+              borderBottom: "2px solid rgba(255,255,255,0.7)",
             }} />
           </div>
           <section style={overlayStyles.stage}>
@@ -728,38 +741,45 @@ export default function CommsOverlay() {
                 </div>
               )}
 
-              <div 
-                style={{
-                  ...overlayStyles.videoGrid,
-                  ...(isFeaturedVideoVisible ? {} : { height: "auto", flex: 1, minHeight: 0 }),
-                }}
-                className="video-grid-scrollbar"
-              >
-                {gridStreams.length === 0 ? (
-                  <div style={{ opacity: 0.65, fontSize: 12, padding: "6px 4px", alignSelf: "center", width: "100%", textAlign: "center" }}>
-                    Remote feeds will appear here when another participant shares their screen or camera.
-                  </div>
-                ) : (
-                  gridStreams.map((item, idx) => (
-                    <VideoTile
-                      key={`${item.type}-${item.label}-${idx}`}
-                      stream={item.stream}
-                      muted={item.stream === localStream || item.stream === localCameraStream}
-                      label={item.label}
-                      subtitle={item.subtitle}
-                      onClick={() => {
-                        // Set as featured stream (thumbnails stay in grid)
-                        setFeaturedStream(item.stream);
-                        // If featured video is hidden, show it when clicking a thumbnail
-                        if (!isFeaturedVideoVisible) {
-                          setIsFeaturedVideoVisible(true);
-                        }
-                      }}
-                      isActive={featuredStreamToShow === item.stream}
-                    />
-                  ))
-                )}
-              </div>
+              {isThumbnailsVisible && (
+                <div 
+                  style={{
+                    ...overlayStyles.videoGrid,
+                    ...(isFeaturedVideoVisible ? {} : { height: "auto", flex: 1, minHeight: 0 }),
+                  }}
+                  className="video-grid-scrollbar"
+                >
+                  {gridStreams.length === 0 ? (
+                    <div style={{ opacity: 0.65, fontSize: 12, padding: "6px 4px", alignSelf: "center", width: "100%", textAlign: "center" }}>
+                      Remote feeds will appear here when another participant shares their screen or camera.
+                    </div>
+                  ) : (
+                    gridStreams.map((item, idx) => (
+                      <VideoTile
+                        key={`${item.type}-${item.label}-${idx}`}
+                        stream={item.stream}
+                        muted={item.stream === localStream || item.stream === localCameraStream}
+                        label={item.label}
+                        subtitle={item.subtitle}
+                        onClick={() => {
+                          // If clicking the already-featured stream, collapse featured video
+                          if (featuredStreamToShow === item.stream && isFeaturedVideoVisible) {
+                            setIsFeaturedVideoVisible(false);
+                          } else {
+                            // Set as featured stream (thumbnails stay in grid)
+                            setFeaturedStream(item.stream);
+                            // If featured video is hidden, show it when clicking a thumbnail
+                            if (!isFeaturedVideoVisible) {
+                              setIsFeaturedVideoVisible(true);
+                            }
+                          }
+                        }}
+                        isActive={featuredStreamToShow === item.stream}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={overlayStyles.controlsBar}>
@@ -835,6 +855,14 @@ export default function CommsOverlay() {
                   title={isParticipantsCollapsed ? "Show details" : "Hide details"}
                 >
                   {isParticipantsCollapsed ? "Show Details" : "Hide Details"}
+                </button>
+                <button
+                  type="button"
+                  style={controlButtonStyle({ active: !isThumbnailsVisible })}
+                  onClick={() => setIsThumbnailsVisible(!isThumbnailsVisible)}
+                  title={isThumbnailsVisible ? "Hide thumbnails" : "Show thumbnails"}
+                >
+                  {isThumbnailsVisible ? "Hide Thumbnails" : "Show Thumbnails"}
                 </button>
               </div>
             </div>
