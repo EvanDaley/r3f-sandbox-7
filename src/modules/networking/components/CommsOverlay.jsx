@@ -293,7 +293,7 @@ export default function CommsOverlay() {
   const activeConnections = useNetworkingStore((state) => state.activeConnections);
   const displayName = useNetworkingStore((state) => state.displayName);
 
-  const [isOpen, setIsOpen] = useState(true); // Open by default
+  const [isOpen, setIsOpen] = useState(false); // Closed by default
   const [featuredStream, setFeaturedStream] = useState(null);
 
   // Note that on the height we later SUBTRACT the height of the featured video area (400px)
@@ -437,7 +437,7 @@ export default function CommsOverlay() {
   return (
     <>
       <button type="button" style={overlayStyles.launcher} onClick={() => setIsOpen((open) => !open)}>
-        {isOpen ? "Hide Comms" : "Open Comms"} ({connectedPeerIds.length + 1})
+        {isOpen ? "Close Comms Hud" : "Open Comms Hud"} ({connectedPeerIds.length + 1})
       </button>
 
       {isOpen && (
@@ -505,7 +505,7 @@ export default function CommsOverlay() {
                 >
                   {gridStreams.length === 0 ? (
                     <div style={{ opacity: 0.65, fontSize: 12, padding: "6px 4px", alignSelf: "center", width: "100%", textAlign: "center" }}>
-                      Remote feeds will appear here when another participant shares their screen or camera.
+                      Remote feeds will appear here when another participant shares their camera or screen.
                     </div>
                   ) : (
                     gridStreams.map((item, idx) => (
@@ -543,20 +543,6 @@ export default function CommsOverlay() {
                 </div>
               )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
-                {!isSharingScreen ? (
-                  <button
-                    type="button"
-                    style={controlButtonStyle({ active: false })}
-                    onClick={startScreenShare}
-                    disabled={!canShare}
-                  >
-                    Start Sharing
-                  </button>
-                ) : (
-                  <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopScreenShare}>
-                    Stop Sharing
-                  </button>
-                )}
                 {!isSharingCamera ? (
                   <button
                     type="button"
@@ -569,6 +555,20 @@ export default function CommsOverlay() {
                 ) : (
                   <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopCameraShare}>
                     Stop Camera
+                  </button>
+                )}
+                {!isSharingScreen ? (
+                  <button
+                    type="button"
+                    style={controlButtonStyle({ active: false })}
+                    onClick={startScreenShare}
+                    disabled={!canShare}
+                  >
+                    Start Sharing
+                  </button>
+                ) : (
+                  <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopScreenShare}>
+                    Stop Sharing
                   </button>
                 )}
                 {!isInVoiceChat ? (

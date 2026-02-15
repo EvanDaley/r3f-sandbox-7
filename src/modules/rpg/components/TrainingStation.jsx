@@ -27,7 +27,7 @@ export default function TrainingStation({ station, showInteractPrompt }) {
 
       {showInteractPrompt && (
         <Html position={[0, 2.2, 0]} center sprite distanceFactor={10}>
-          <div style={promptStyle}>{`[E] {${station.name}}`}</div>
+          <div style={promptStyle}>{`[E] ${station.name}`}</div>
         </Html>
       )}
     </group>
