@@ -184,6 +184,9 @@ function StreamTile({ label, subtitle, stream, muted, onClick, isActive, style }
       const maybePromise = videoElement.play?.();
       if (maybePromise && typeof maybePromise.catch === "function") {
         maybePromise.catch((error) => {
+          if (error?.name === "AbortError") {
+            return;
+          }
           console.warn("[network/comms] video play interrupted", {
             label,
             subtitle,
@@ -345,13 +348,59 @@ export default function NetworkCommsOverlay() {
       const statsKey = `${direction}:${remotePeerId}:${source}:${call?.connectionId || "no-connection-id"}`;
       stopMediaStatsLogger(statsKey);
 
-      const pc = getPeerConnectionFromCall(call);
-      if (!pc || typeof pc.getStats !== "function") {
-        pushDebugEvent("pc unavailable for stats", { remotePeerId, source, direction });
-        return;
-      }
+      let activePc = null;
+      let detachPcStateListeners = null;
+
+      const attachPcStateListeners = (pc) => {
+        const logIceState = () => {
+          pushDebugEvent("pc state", {
+            remotePeerId,
+            source,
+            direction,
+            iceConnectionState: pc.iceConnectionState,
+            connectionState: pc.connectionState,
+            signalingState: pc.signalingState,
+            iceGatheringState: pc.iceGatheringState,
+          });
+        };
+
+        pc.addEventListener("iceconnectionstatechange", logIceState);
+        pc.addEventListener("connectionstatechange", logIceState);
+        pc.addEventListener("icegatheringstatechange", logIceState);
+        logIceState();
+
+        return () => {
+          pc.removeEventListener("iceconnectionstatechange", logIceState);
+          pc.removeEventListener("connectionstatechange", logIceState);
+          pc.removeEventListener("icegatheringstatechange", logIceState);
+        };
+      };
 
       const pollStats = async () => {
+        const pc = getPeerConnectionFromCall(call);
+        if (!pc || typeof pc.getStats !== "function") {
+          pushDebugEvent("pc unavailable for stats", {
+            remotePeerId,
+            source,
+            direction,
+            hasCall: !!call,
+            connectionId: call?.connectionId,
+          });
+          return;
+        }
+
+        if (activePc !== pc) {
+          detachPcStateListeners?.();
+          activePc = pc;
+          detachPcStateListeners = attachPcStateListeners(pc);
+          pushDebugEvent("pc attached", {
+            remotePeerId,
+            source,
+            direction,
+            connectionId: call?.connectionId,
+          });
+        }
+
         try {
           const stats = await pc.getStats();
           let selectedPair = null;
@@ -446,31 +495,13 @@ export default function NetworkCommsOverlay() {
         }
       };
 
-      const logIceState = () => {
-        pushDebugEvent("pc state", {
-          remotePeerId,
-          source,
-          direction,
-          iceConnectionState: pc.iceConnectionState,
-          connectionState: pc.connectionState,
-          signalingState: pc.signalingState,
-          iceGatheringState: pc.iceGatheringState,
-        });
-      };
-
-      pc.addEventListener("iceconnectionstatechange", logIceState);
-      pc.addEventListener("connectionstatechange", logIceState);
-      pc.addEventListener("icegatheringstatechange", logIceState);
-
       const intervalId = setInterval(pollStats, MEDIA_STATS_POLL_INTERVAL_MS);
       mediaStatsIntervalsRef.current[statsKey] = intervalId;
 
       pollStats();
 
       return () => {
-        pc.removeEventListener("iceconnectionstatechange", logIceState);
-        pc.removeEventListener("connectionstatechange", logIceState);
-        pc.removeEventListener("icegatheringstatechange", logIceState);
+        detachPcStateListeners?.();
         stopMediaStatsLogger(statsKey);
       };
     },
