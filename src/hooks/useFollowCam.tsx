@@ -250,17 +250,60 @@ export const useFollowCam = function ({
     pivot.add(followCam);
     scene.add(pivot);
 
+    // Mouse event handlers - only allow left mouse button (button === 0) for camera control
+    const handleMouseDown = (e: MouseEvent) => {
+      // Only allow left mouse button (button 0) for camera movement
+      if (e.button === 0) {
+        isMouseDown = true;
+        // Request pointer lock to hide cursor and lock it in place
+        const target = camListenerTarget === "domElement" ? gl.domElement : document.body;
+        if (target.requestPointerLock) {
+          target.requestPointerLock();
+        }
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // Only release if it was the left mouse button
+      if (e.button === 0) {
+        isMouseDown = false;
+        // Exit pointer lock when mouse button is released
+        if (document.pointerLockElement) {
+          document.exitPointerLock();
+        }
+      }
+    };
+
+    // Handle pointer lock change events
+    const handlePointerLockChange = () => {
+      // If pointer lock was lost (e.g., user pressed ESC), update state
+      if (!document.pointerLockElement) {
+        isMouseDown = false;
+      }
+    };
+
+    // Prevent context menu from showing on right click
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    // Add pointer lock change listener
+    document.addEventListener("pointerlockchange", handlePointerLockChange);
+    document.addEventListener("pointerlockerror", handlePointerLockChange);
+
     if (camListenerTarget === "domElement") {
-      gl.domElement.addEventListener("mousedown", () => { isMouseDown = true });
-      gl.domElement.addEventListener("mouseup", () => { isMouseDown = false });
+      gl.domElement.addEventListener("mousedown", handleMouseDown);
+      gl.domElement.addEventListener("mouseup", handleMouseUp);
+      gl.domElement.addEventListener("contextmenu", handleContextMenu);
       gl.domElement.addEventListener("mousemove", onDocumentMouseMove);
       gl.domElement.addEventListener("mousewheel", onDocumentMouseWheel);
       // Touch event
       gl.domElement.addEventListener("touchend", onTouchEnd);
       gl.domElement.addEventListener("touchmove", onTouchMove, { passive: false });
     } else if (camListenerTarget === "document") {
-      document.addEventListener("mousedown", () => { isMouseDown = true });
-      document.addEventListener("mouseup", () => { isMouseDown = false });
+      document.addEventListener("mousedown", handleMouseDown);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("contextmenu", handleContextMenu);
       document.addEventListener("mousemove", onDocumentMouseMove);
       document.addEventListener("mousewheel", onDocumentMouseWheel);
       // Touch event
@@ -269,17 +312,23 @@ export const useFollowCam = function ({
     }
 
     return () => {
+      // Remove pointer lock change listeners
+      document.removeEventListener("pointerlockchange", handlePointerLockChange);
+      document.removeEventListener("pointerlockerror", handlePointerLockChange);
+
       if (camListenerTarget === "domElement") {
-        gl.domElement.removeEventListener("mousedown", () => { isMouseDown = true });
-        gl.domElement.removeEventListener("mouseup", () => { isMouseDown = false });
+        gl.domElement.removeEventListener("mousedown", handleMouseDown);
+        gl.domElement.removeEventListener("mouseup", handleMouseUp);
+        gl.domElement.removeEventListener("contextmenu", handleContextMenu);
         gl.domElement.removeEventListener("mousemove", onDocumentMouseMove);
         gl.domElement.removeEventListener("mousewheel", onDocumentMouseWheel);
         // Touch event
         gl.domElement.removeEventListener("touchend", onTouchEnd);
         gl.domElement.removeEventListener("touchmove", onTouchMove);
       } else if (camListenerTarget === "document") {
-        document.removeEventListener("mousedown", () => { isMouseDown = true });
-        document.removeEventListener("mouseup", () => { isMouseDown = false });
+        document.removeEventListener("mousedown", handleMouseDown);
+        document.removeEventListener("mouseup", handleMouseUp);
+        document.removeEventListener("contextmenu", handleContextMenu);
         document.removeEventListener("mousemove", onDocumentMouseMove);
         document.removeEventListener("mousewheel", onDocumentMouseWheel);
         // Touch event
