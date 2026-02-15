@@ -256,9 +256,14 @@ export const useFollowCam = function ({
       if (e.button === 0) {
         isMouseDown = true;
         // Request pointer lock to hide cursor and lock it in place
-        const target = camListenerTarget === "domElement" ? gl.domElement : document.body;
-        if (target.requestPointerLock) {
-          target.requestPointerLock();
+        // Only request if not already locked to avoid repeated notifications
+        if (!document.pointerLockElement) {
+          const target = camListenerTarget === "domElement" ? gl.domElement : document.body;
+          if (target.requestPointerLock) {
+            target.requestPointerLock().catch(() => {
+              // Silently handle errors (user might have denied permission)
+            });
+          }
         }
       }
     };
