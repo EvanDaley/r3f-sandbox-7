@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNetworkingStore } from "../stores/useNetworkingStore";
 import { useVoiceChat } from "../hooks/useVoiceChat";
+import { useCameraShare } from "../hooks/useCameraShare";
 
 const overlayStyles = {
   launcher: {
@@ -223,6 +224,16 @@ export default function CommsOverlay() {
     toggleMute,
   } = useVoiceChat(peer, connectedPeerIds);
 
+  // Camera share hook
+  const {
+    isSharingCamera,
+    cameraError,
+    localCameraStream,
+    remoteCameraStreams,
+    startCameraShare,
+    stopCameraShare,
+  } = useCameraShare(peer, connectedPeerIds);
+
   // Cleanup function for streams
   const cleanupStream = useCallback(() => {
     if (streamRef.current) {
@@ -410,24 +421,66 @@ export default function CommsOverlay() {
     }
   }, [connectedPeerId, remoteStream, cleanupCalls]);
 
-  // Determine which stream to show in featured tile
-  const featuredStreamToShow = featuredStream || remoteStream || localStream;
-  const featuredLabel = featuredStream 
+  // Determine which stream to show in featured tile (prioritize screen share, then camera)
+  // featuredStream is set when user clicks on a stream tile
+  const featuredStreamToShow = featuredStream 
+    ? featuredStream
+    : remoteStream || localStream || localCameraStream || 
+      (remoteCameraStreams.size > 0 ? Array.from(remoteCameraStreams.values())[0] : null);
+  
+  // Find which peer this featured stream belongs to
+  const featuredRemoteCameraPeerId = featuredStreamToShow && remoteCameraStreams.size > 0
+    ? Array.from(remoteCameraStreams.entries()).find(([_, stream]) => stream === featuredStreamToShow)?.[0]
+    : null;
+
+  const featuredLabel = featuredStream === remoteStream
     ? `Remote (${connectedPeerId?.slice(0, 8)}...)`
+    : featuredRemoteCameraPeerId
+    ? `Remote (${featuredRemoteCameraPeerId.slice(0, 8)}...)`
+    : featuredStream === localStream
+    ? "You"
+    : featuredStream === localCameraStream
+    ? "You"
     : remoteStream
     ? `Remote (${connectedPeerId?.slice(0, 8)}...)`
     : localStream
     ? "You"
+    : localCameraStream
+    ? "You"
+    : featuredRemoteCameraPeerId
+    ? `Remote (${featuredRemoteCameraPeerId.slice(0, 8)}...)`
     : null;
 
-  // Available streams for the grid
+  const featuredSubtitle = (featuredStream === remoteStream || featuredStream === localStream || remoteStream || localStream)
+    ? "Screen Share"
+    : (featuredStream === localCameraStream || featuredRemoteCameraPeerId || localCameraStream)
+    ? "Camera"
+    : null;
+
+  // Available streams for the grid (screen shares and cameras)
   const gridStreams = [];
-  if (localStream && !featuredStream) {
-    gridStreams.push({ stream: localStream, label: "You", subtitle: "Screen" });
+  
+  // Add local screen share if not featured
+  if (localStream && !featuredStream && featuredStreamToShow !== localStream) {
+    gridStreams.push({ stream: localStream, label: "You", subtitle: "Screen", type: "screen" });
   }
-  if (remoteStream && remoteStream !== featuredStream) {
-    gridStreams.push({ stream: remoteStream, label: connectedPeerId?.slice(0, 8) || "Remote", subtitle: "Screen" });
+  
+  // Add remote screen share if not featured
+  if (remoteStream && remoteStream !== featuredStream && featuredStreamToShow !== remoteStream) {
+    gridStreams.push({ stream: remoteStream, label: connectedPeerId?.slice(0, 8) || "Remote", subtitle: "Screen", type: "screen" });
   }
+  
+  // Add local camera if not featured
+  if (localCameraStream && featuredStreamToShow !== localCameraStream) {
+    gridStreams.push({ stream: localCameraStream, label: "You", subtitle: "Camera", type: "camera" });
+  }
+  
+  // Add remote camera streams
+  remoteCameraStreams.forEach((stream, peerId) => {
+    if (featuredStreamToShow !== stream) {
+      gridStreams.push({ stream, label: peerId.slice(0, 8) || "Remote", subtitle: "Camera", type: "camera" });
+    }
+  });
 
   const canShare = connectedPeerId && peer && !isSharing;
 
@@ -445,16 +498,16 @@ export default function CommsOverlay() {
                 {featuredStreamToShow ? (
                   <VideoTile
                     stream={featuredStreamToShow}
-                    muted={featuredStreamToShow === localStream}
+                    muted={featuredStreamToShow === localStream || featuredStreamToShow === localCameraStream}
                     label={featuredLabel}
-                    subtitle="Screen Share"
+                    subtitle={featuredSubtitle}
                     onClick={() => setFeaturedStream(null)}
                     isActive
                     style={overlayStyles.featuredTile}
                   />
                 ) : (
                   <div style={{ height: "100%", display: "grid", placeItems: "center", opacity: 0.65, fontSize: 13 }}>
-                    Click "Start Sharing" to share your screen
+                    Click "Start Sharing" or "Start Camera" to share
                   </div>
                 )}
               </div>
@@ -462,27 +515,34 @@ export default function CommsOverlay() {
               <div style={overlayStyles.videoGrid}>
                 {gridStreams.length === 0 && (
                   <div style={{ opacity: 0.65, fontSize: 12, padding: "6px 4px" }}>
-                    Remote feeds will appear here when another participant shares their screen.
+                    Remote feeds will appear here when another participant shares their screen or camera.
                   </div>
                 )}
                 {gridStreams.map((item, idx) => (
                   <VideoTile
-                    key={idx}
+                    key={`${item.type}-${item.label}-${idx}`}
                     stream={item.stream}
-                    muted={item.stream === localStream}
+                    muted={item.stream === localStream || item.stream === localCameraStream}
                     label={item.label}
                     subtitle={item.subtitle}
-                    onClick={() => setFeaturedStream(item.stream === remoteStream ? remoteStream : null)}
-                    isActive={featuredStream === item.stream}
+                    onClick={() => {
+                      // Toggle featured stream - if already featured, unfeature it
+                      if (featuredStreamToShow === item.stream) {
+                        setFeaturedStream(null);
+                      } else {
+                        setFeaturedStream(item.stream);
+                      }
+                    }}
+                    isActive={featuredStreamToShow === item.stream}
                   />
                 ))}
               </div>
             </div>
 
             <div style={overlayStyles.controlsBar}>
-              {(error || voiceError) && (
+              {(error || voiceError || cameraError) && (
                 <div style={{ width: "100%", color: "#ffb4b4", fontSize: 12, lineHeight: 1.35 }}>
-                  {error || voiceError}
+                  {error || voiceError || cameraError}
                 </div>
               )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
@@ -498,6 +558,20 @@ export default function CommsOverlay() {
                 ) : (
                   <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopScreenShare}>
                     Stop Sharing
+                  </button>
+                )}
+                {!isSharingCamera ? (
+                  <button
+                    type="button"
+                    style={controlButtonStyle({ active: false, disabled: connectedPeerIds.length === 0 })}
+                    onClick={startCameraShare}
+                    disabled={connectedPeerIds.length === 0 || !peer}
+                  >
+                    Start Camera
+                  </button>
+                ) : (
+                  <button type="button" style={controlButtonStyle({ danger: true })} onClick={stopCameraShare}>
+                    Stop Camera
                   </button>
                 )}
                 {!isInVoiceChat ? (
@@ -545,11 +619,18 @@ export default function CommsOverlay() {
                   {remoteAudioStreams.has(id) && (
                     <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.9 }}>🎤</span>
                   )}
+                  {remoteCameraStreams.has(id) && (
+                    <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.9 }}>📹</span>
+                  )}
                 </div>
               ))}
               <div style={{ marginTop: 6, fontSize: 11, opacity: 0.8 }}>
-                {isSharing ? "Sharing your screen" : "Not sharing"}
+                {isSharing ? "Sharing your screen" : "Not sharing screen"}
                 {remoteStream && " • Receiving remote share"}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
+                {isSharingCamera ? "Sharing your camera" : "Not sharing camera"}
+                {remoteCameraStreams.size > 0 && ` • ${remoteCameraStreams.size} remote camera${remoteCameraStreams.size > 1 ? "s" : ""}`}
               </div>
               <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
                 {isInVoiceChat ? (
