@@ -24,6 +24,7 @@ function PlayerCharacter({ controllerRef }) {
       camInitDis={-6}
       camMaxDis={-10}
       camCollisionOffset={0.8}
+      camInitDir={{ x: .5, y: 0 }}
       position={[0, 1.5, 0]}
       ref={controllerRef}
     >
