@@ -1,6 +1,7 @@
 import { PEER_SERVER_SETTINGS } from "../config/networkConfig";
 
 let peerInstance = null;
+let peerInitPromise = null;
 
 const PEERJS_CDN_URL = "https://esm.sh/peerjs@1.5.4";
 
@@ -27,10 +28,27 @@ export const initPeer = async (desiredPeerId) => {
     return peerInstance;
   }
 
+  if (peerInitPromise) {
+    log("awaiting in-flight peer initialization", { desiredPeerId });
+    return peerInitPromise;
+  }
+
   log("creating new peer instance", { desiredPeerId, settings: PEER_SERVER_SETTINGS });
-  const PeerConstructor = await loadPeerConstructor();
-  peerInstance = new PeerConstructor(desiredPeerId, PEER_SERVER_SETTINGS);
-  return peerInstance;
+
+  peerInitPromise = loadPeerConstructor()
+    .then((PeerConstructor) => {
+      if (peerInstance && !peerInstance.destroyed) {
+        return peerInstance;
+      }
+
+      peerInstance = new PeerConstructor(desiredPeerId, PEER_SERVER_SETTINGS);
+      return peerInstance;
+    })
+    .finally(() => {
+      peerInitPromise = null;
+    });
+
+  return peerInitPromise;
 };
 
 export const resetPeerInstance = () => {
@@ -39,4 +57,5 @@ export const resetPeerInstance = () => {
     peerInstance.destroy();
   }
   peerInstance = null;
+  peerInitPromise = null;
 };

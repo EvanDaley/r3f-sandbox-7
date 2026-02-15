@@ -18,6 +18,8 @@ export const useNetworkingStore = create((set) => ({
   displayName: "",
   activeConnections: {},
   errors: [],
+  chatMessages: [],
+  remoteMediaStreams: {},
   hasCompletedHostedNameFlow: false,
   setPeer: (peer) => {
     log("setPeer", { peerId: peer?.id });
@@ -58,5 +60,54 @@ export const useNetworkingStore = create((set) => ({
       return {
         errors: [...state.errors, error],
       };
+    }),
+  addChatMessage: (message) =>
+    set((state) => {
+      const nextMessages = [...state.chatMessages, message];
+      return {
+        chatMessages: nextMessages.slice(-200),
+      };
+    }),
+  addRemoteMediaStream: ({ streamId, peerId, source, stream, incomingStreamId }) =>
+    set((state) => ({
+      remoteMediaStreams: {
+        ...state.remoteMediaStreams,
+        [streamId]: {
+          streamId,
+          peerId,
+          source,
+          stream,
+          incomingStreamId: incomingStreamId || stream?.id || "",
+        },
+      },
+    })),
+  removeRemoteMediaStream: (streamId) =>
+    set((state) => {
+      const nextStreams = { ...state.remoteMediaStreams };
+      delete nextStreams[streamId];
+      return { remoteMediaStreams: nextStreams };
+    }),
+
+  removeRemoteMediaStreamIfMatches: ({ streamId, incomingStreamId }) =>
+    set((state) => {
+      const current = state.remoteMediaStreams[streamId];
+      if (!current) return state;
+      if (incomingStreamId && current.incomingStreamId && current.incomingStreamId !== incomingStreamId) {
+        return state;
+      }
+
+      const nextStreams = { ...state.remoteMediaStreams };
+      delete nextStreams[streamId];
+      return { remoteMediaStreams: nextStreams };
+    }),
+  removeRemoteMediaStreamsByPeer: (peerId) =>
+    set((state) => {
+      const nextStreams = { ...state.remoteMediaStreams };
+      Object.keys(nextStreams).forEach((streamId) => {
+        if (nextStreams[streamId]?.peerId === peerId) {
+          delete nextStreams[streamId];
+        }
+      });
+      return { remoteMediaStreams: nextStreams };
     }),
 }));
