@@ -24,8 +24,9 @@ function PlayerCharacter({ controllerRef }) {
       autoBalanceDampingOnY={0.05}
       camInitDis={-6}
       camMaxDis={-10}
-      camCollisionOffset={0.2}
-      camInitDir={{ x: -0.15, y: Math.PI }}
+      camCollisionOffset={0.3}
+      camInitDir={{ x: -0.26, y: Math.PI }}
+      camTargetPos={{ x: 0, y: 0.45, z: 0 }}
       position={SPAWN_POINT.toArray()}
       ref={controllerRef}
     >
@@ -46,7 +47,7 @@ function PlayerCharacter({ controllerRef }) {
 function RoomShell({ centerZ, title, instruction, color, doorToNext = true, doorToPrev = true }) {
   const roomWidth = 18;
   const roomLength = 14;
-  const wallHeight = 4;
+  const wallHeight = 2;
   const wallThickness = 0.5;
   const doorwayWidth = 4;
   const sideSegmentWidth = (roomWidth - doorwayWidth) / 2;
@@ -59,42 +60,42 @@ function RoomShell({ centerZ, title, instruction, color, doorToNext = true, door
       <RigidBody type='fixed' colliders='cuboid' position={[0, -0.15, centerZ]}>
         <mesh receiveShadow>
           <boxGeometry args={[roomWidth, 0.3, roomLength]} />
-          <meshStandardMaterial color='#1b2330' roughness={0.95} metalness={0.06} />
+          <meshStandardMaterial color='#0f3d5e' roughness={0.88} metalness={0.22} />
         </mesh>
       </RigidBody>
 
       <RigidBody type='fixed' colliders='cuboid' position={[roomWidth / 2, wallHeight / 2, centerZ]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[wallThickness, wallHeight, roomLength]} />
-          <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+          <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
         </mesh>
       </RigidBody>
       <RigidBody type='fixed' colliders='cuboid' position={[-roomWidth / 2, wallHeight / 2, centerZ]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[wallThickness, wallHeight, roomLength]} />
-          <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+          <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
         </mesh>
       </RigidBody>
 
       {!doorToPrev ? (
         <RigidBody type='fixed' colliders='cuboid' position={[0, wallHeight / 2, backZ]}>
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[roomWidth, wallHeight, wallThickness]} />
-            <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
-          </mesh>
-        </RigidBody>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[roomWidth, wallHeight, wallThickness]} />
+              <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
+            </mesh>
+          </RigidBody>
       ) : (
         <>
           <RigidBody type='fixed' colliders='cuboid' position={[-(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, backZ]}>
             <mesh castShadow receiveShadow>
               <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
-              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+              <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
             </mesh>
           </RigidBody>
           <RigidBody type='fixed' colliders='cuboid' position={[(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, backZ]}>
             <mesh castShadow receiveShadow>
               <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
-              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+              <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
             </mesh>
           </RigidBody>
         </>
@@ -102,23 +103,23 @@ function RoomShell({ centerZ, title, instruction, color, doorToNext = true, door
 
       {!doorToNext ? (
         <RigidBody type='fixed' colliders='cuboid' position={[0, wallHeight / 2, frontZ]}>
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[roomWidth, wallHeight, wallThickness]} />
-            <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
-          </mesh>
-        </RigidBody>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[roomWidth, wallHeight, wallThickness]} />
+              <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
+            </mesh>
+          </RigidBody>
       ) : (
         <>
           <RigidBody type='fixed' colliders='cuboid' position={[-(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, frontZ]}>
             <mesh castShadow receiveShadow>
               <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
-              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+              <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
             </mesh>
           </RigidBody>
           <RigidBody type='fixed' colliders='cuboid' position={[(doorwayWidth / 2 + sideSegmentWidth / 2), wallHeight / 2, frontZ]}>
             <mesh castShadow receiveShadow>
               <boxGeometry args={[sideSegmentWidth, wallHeight, wallThickness]} />
-              <meshStandardMaterial color='#273449' roughness={0.85} metalness={0.12} />
+              <meshStandardMaterial color='#5b4ee6' roughness={0.65} metalness={0.26} />
             </mesh>
           </RigidBody>
         </>
@@ -165,7 +166,7 @@ function TutorialMovingPlatforms() {
       <RigidBody type='fixed' colliders='cuboid' position={[0, -2.6, -23]}>
         <mesh receiveShadow>
           <boxGeometry args={[18, 5, 12]} />
-          <meshStandardMaterial color='#0b1220' roughness={0.98} metalness={0.02} />
+          <meshStandardMaterial color='#082f49' roughness={0.9} metalness={0.12} />
         </mesh>
       </RigidBody>
 
@@ -334,11 +335,11 @@ export default function TutorialScene() {
 
   return (
     <>
-      <color attach='background' args={['#0d1320']} />
-      <fog attach='fog' args={['#0d1320', 18, 72]} />
-      <ambientLight intensity={0.42} />
-      <hemisphereLight intensity={0.5} color='#dbeafe' groundColor='#1e293b' />
-      <directionalLight castShadow position={[10, 15, 12]} intensity={1.5} shadow-mapSize={[2048, 2048]} />
+      <color attach='background' args={['#171a4a']} />
+      <fog attach='fog' args={['#0f1232', 18, 72]} />
+      <ambientLight intensity={0.54} color='#dbeafe' />
+      <hemisphereLight intensity={0.8} color='#fdf4ff' groundColor='#1e3a8a' />
+      <directionalLight castShadow position={[10, 15, 12]} intensity={1.7} color='#bfdbfe' shadow-mapSize={[2048, 2048]} />
 
       <Physics timeStep='vary'>
         <KeyboardControls map={RPG_KEYBOARD_MAP}>
@@ -360,20 +361,33 @@ export default function TutorialScene() {
           centerZ={20}
           title='Room 1 · Movement'
           instruction='Use WASD or Arrow Keys to move. Hold Shift to sprint.'
-          color='#34d399'
-          doorToPrev={false}
+          color='#22d3ee'
         />
+
+        <RigidBody type='fixed' colliders='cuboid' position={[0, -0.15, 12]}>
+          <mesh receiveShadow>
+            <boxGeometry args={[10, 0.3, 2]} />
+            <meshStandardMaterial color='#0f3d5e' roughness={0.88} metalness={0.22} />
+          </mesh>
+        </RigidBody>
         <RoomShell
           centerZ={4}
           title='Room 2 · Camera'
           instruction='Hold middle mouse and move the mouse to orbit the camera.'
-          color='#60a5fa'
+          color='#f59e0b'
         />
+
+        <RigidBody type='fixed' colliders='cuboid' position={[0, -0.15, -4]}>
+          <mesh receiveShadow>
+            <boxGeometry args={[10, 0.3, 2]} />
+            <meshStandardMaterial color='#0f3d5e' roughness={0.88} metalness={0.22} />
+          </mesh>
+        </RigidBody>
         <RoomShell
           centerZ={-12}
           title='Room 3 · Jumping'
           instruction='Press Space to jump and cross the moving platform path.'
-          color='#c084fc'
+          color='#22c55e'
           doorToNext={false}
         />
 
