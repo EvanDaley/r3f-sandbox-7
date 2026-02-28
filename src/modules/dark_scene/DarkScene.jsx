@@ -1,4 +1,4 @@
-import { Html, KeyboardControls, Text, Stars } from '@react-three/drei';
+import { Html, KeyboardControls, Text, Stars, useGLTF } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
@@ -307,6 +307,131 @@ function FloatingParticles({ count = 100 }) {
   );
 }
 
+function ElephantMan({ position = [0, 0, 0], scale = 1 }) {
+  const { scene } = useGLTF('./models/third_person_blender_integrated/elephant-man.glb');
+  const modelRef = useRef();
+  const lightGroupRef = useRef();
+  
+  useEffect(() => {
+    if (scene) {
+      console.log('Elephant man model loaded:', scene);
+      let meshCount = 0;
+      scene.traverse((child) => {
+        if (child.isMesh) {
+          meshCount++;
+          console.log('Mesh found:', child.name, child.type, 'position:', child.position);
+          // Make sure materials are visible
+          if (child.material) {
+            child.material.transparent = false;
+            child.material.opacity = 1;
+          }
+        }
+      });
+      console.log('Total meshes:', meshCount);
+    } else {
+      console.error('Elephant man model failed to load - scene is null');
+    }
+  }, [scene]);
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    if (modelRef.current) {
+      // Subtle floating/bobbing animation
+      modelRef.current.position.y = position[1] + Math.sin(time * 0.5) * 0.1;
+      // Slow rotation
+      modelRef.current.rotation.y = time * 0.1;
+    }
+    
+    // Animate lights pulsing
+    if (lightGroupRef.current) {
+      const pulse = Math.sin(time * 2) * 0.3 + 0.7;
+      lightGroupRef.current.children.forEach((light) => {
+        if (light.isLight) {
+          light.intensity = light.userData.baseIntensity * pulse;
+        }
+      });
+    }
+  });
+
+  // Always show a visible test box first
+  return (
+    <group ref={modelRef} position={position} scale={scale}>
+      {/* Test box - make it smaller so we can see the model */}
+      {!scene && (
+        <mesh position={[0, 1, 0]}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial color='#00ff00' emissive='#00ff00' emissiveIntensity={2} />
+        </mesh>
+      )}
+      
+      {/* Render the model if it exists */}
+      {scene && (
+        <primitive 
+          object={scene.clone()} 
+        />
+      )}
+      
+      {/* Lights around the elephant man - brighter for visibility */}
+      <group ref={lightGroupRef}>
+        {/* Top light */}
+        <pointLight 
+          position={[0, 3, 0]} 
+          intensity={8} 
+          distance={15} 
+          color='#ffffff' 
+          decay={1.5}
+          userData={{ baseIntensity: 8 }}
+        />
+        {/* Front light */}
+        <pointLight 
+          position={[0, 1.5, 2]} 
+          intensity={6} 
+          distance={12} 
+          color='#ffffff' 
+          decay={1.5}
+          userData={{ baseIntensity: 6 }}
+        />
+        {/* Back light */}
+        <pointLight 
+          position={[0, 1.5, -2]} 
+          intensity={6} 
+          distance={12} 
+          color='#ffffff' 
+          decay={1.5}
+          userData={{ baseIntensity: 6 }}
+        />
+        {/* Left light */}
+        <pointLight 
+          position={[-2, 1.5, 0]} 
+          intensity={6} 
+          distance={12} 
+          color='#ffffff' 
+          decay={1.5}
+          userData={{ baseIntensity: 6 }}
+        />
+        {/* Right light */}
+        <pointLight 
+          position={[2, 1.5, 0]} 
+          intensity={6} 
+          distance={12} 
+          color='#ffffff' 
+          decay={1.5}
+          userData={{ baseIntensity: 6 }}
+        />
+        {/* Ground light */}
+        <pointLight 
+          position={[0, 0.2, 0]} 
+          intensity={5} 
+          distance={10} 
+          color='#ffffff' 
+          decay={1.5}
+          userData={{ baseIntensity: 5 }}
+        />
+      </group>
+    </group>
+  );
+}
+
 function GlowingRune({ position, rotation = [0, 0, 0] }) {
   const runeRef = useRef();
   
@@ -435,15 +560,15 @@ export default function DarkScene() {
   return (
     <>
       <color attach='background' args={['#000000']} />
-      <fog attach='fog' args={['#050510', 12, 45]} />
+      <fog attach='fog' args={['#050510', 15, 50]} />
       <Stars radius={100} depth={50} count={2000} factor={4} fade speed={0.5} />
-      <ambientLight intensity={0.08} color='#0a0a0f' />
-      <hemisphereLight intensity={0.03} color='#000000' groundColor='#000000' />
+      <ambientLight intensity={0.2} color='#1a1a2e' />
+      <hemisphereLight intensity={0.15} color='#2a2a3e' groundColor='#0a0a0f' />
       <directionalLight 
         castShadow 
         position={[10, 20, 10]} 
-        intensity={0.15} 
-        color='#1a1a2e' 
+        intensity={0.4} 
+        color='#3a3a4e' 
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0001}
       />
@@ -569,6 +694,15 @@ export default function DarkScene() {
           <pointLight position={[0, 0, 0]} intensity={1} distance={10} color='#6a0dad' decay={2} />
         </group>
 
+        {/* Elephant Men - positioned around the center */}
+        <Suspense fallback={null}>
+          <ElephantMan position={[0, 0.5, 0]} scale={2} />
+          <ElephantMan position={[-4, 0.5, -3]} scale={1.8} />
+          <ElephantMan position={[4, 0.5, -3]} scale={1.8} />
+          <ElephantMan position={[-3, 0.5, 3]} scale={1.8} />
+          <ElephantMan position={[3, 0.5, 3]} scale={1.8} />
+        </Suspense>
+
         {/* Title text */}
         <Text 
           position={[0, 5, -15]} 
@@ -584,3 +718,6 @@ export default function DarkScene() {
     </>
   );
 }
+
+// Preload the elephant man model
+useGLTF.preload('./models/third_person_blender_integrated/elephant-man.glb');
