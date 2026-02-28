@@ -307,6 +307,27 @@ function FloatingParticles({ count = 100 }) {
   );
 }
 
+function ModelObject({ modelPath, position = [0, 0, 0], scale = 1, rotation = [0, 0, 0] }) {
+  const { scene } = useGLTF(modelPath);
+  const modelRef = useRef();
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    if (modelRef.current && scene) {
+      // Subtle floating animation
+      modelRef.current.position.y = position[1] + Math.sin(time * 0.5 + position[0]) * 0.05;
+    }
+  });
+
+  if (!scene) return null;
+
+  return (
+    <group ref={modelRef} position={position} scale={scale} rotation={rotation}>
+      <primitive object={scene.clone()} />
+    </group>
+  );
+}
+
 function ElephantMan({ position = [0, 0, 0], scale = 1 }) {
   const { scene } = useGLTF('./models/third_person_blender_integrated/elephant-man.glb');
   const modelRef = useRef();
@@ -703,6 +724,92 @@ export default function DarkScene() {
           <ElephantMan position={[3, 0.5, 3]} scale={1.8} />
         </Suspense>
 
+        {/* New models from palette_testing */}
+        <Suspense fallback={null}>
+          {/* Trees */}
+          <ModelObject 
+            modelPath="./models/palette_testing/tree1.glb" 
+            position={[-10, 0, -10]} 
+            scale={2} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/tree1.glb" 
+            position={[10, 0, -10]} 
+            scale={2} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/tree1.glb" 
+            position={[-10, 0, 10]} 
+            scale={2} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/tree1.glb" 
+            position={[10, 0, 10]} 
+            scale={2} 
+          />
+          
+          {/* Tree Approx 1 */}
+          <ModelObject 
+            modelPath="./models/palette_testing/tree_aprox_1.glb" 
+            position={[-6, 0, -8]} 
+            scale={2} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/tree_aprox_1.glb" 
+            position={[6, 0, -8]} 
+            scale={2} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/tree_aprox_1.glb" 
+            position={[-6, 0, 8]} 
+            scale={2} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/tree_aprox_1.glb" 
+            position={[6, 0, 8]} 
+            scale={2} 
+          />
+          
+          {/* Turrets */}
+          <ModelObject 
+            modelPath="./models/palette_testing/turret.glb" 
+            position={[-8, 0, 0]} 
+            scale={1.5} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/turret.glb" 
+            position={[8, 0, 0]} 
+            scale={1.5} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/turret.glb" 
+            position={[0, 0, -12]} 
+            scale={1.5} 
+          />
+          
+          {/* Desks */}
+          <ModelObject 
+            modelPath="./models/palette_testing/desk1.glb" 
+            position={[-5, 0, -5]} 
+            scale={1} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/desk1.glb" 
+            position={[5, 0, -5]} 
+            scale={1} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/desk1.glb" 
+            position={[-5, 0, 5]} 
+            scale={1} 
+          />
+          <ModelObject 
+            modelPath="./models/palette_testing/desk1.glb" 
+            position={[5, 0, 5]} 
+            scale={1} 
+          />
+        </Suspense>
+
         {/* Title text */}
         <Text 
           position={[0, 5, -15]} 
@@ -719,5 +826,9 @@ export default function DarkScene() {
   );
 }
 
-// Preload the elephant man model
+// Preload all models
 useGLTF.preload('./models/third_person_blender_integrated/elephant-man.glb');
+useGLTF.preload('./models/palette_testing/tree1.glb');
+useGLTF.preload('./models/palette_testing/tree_aprox_1.glb');
+useGLTF.preload('./models/palette_testing/turret.glb');
+useGLTF.preload('./models/palette_testing/desk1.glb');
