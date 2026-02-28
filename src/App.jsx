@@ -22,6 +22,13 @@ const EcctrlJoystickControls = () => {
 
 function App() {
   const currentSceneId = useSceneStore((state) => state.currentSceneId);
+  const setSceneId = useSceneStore((state) => state.setSceneId);
+
+  useEffect(() => {
+    const onGoRpg = () => setSceneId('rpg');
+    window.addEventListener('scene:go-rpg', onGoRpg);
+    return () => window.removeEventListener('scene:go-rpg', onGoRpg);
+  }, [setSceneId]);
 
   return (
     <>
