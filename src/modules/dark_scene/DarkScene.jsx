@@ -9,6 +9,63 @@ import Ecctrl from '../third_person_controller/Ecctrl';
 
 const SPAWN_POINT = new THREE.Vector3(0, 1.5, 0);
 
+// Rave beat system - creates synchronized strobing effect
+class RaveBeat {
+  constructor(bpm = 140) {
+    this.bpm = bpm;
+    this.beatsPerSecond = bpm / 60;
+  }
+
+  getFlashIntensity(time) {
+    // Flashing disabled for development - return constant intensity
+    return 1.0;
+    
+    // Create an intense rave strobing pattern with sharp on/off transitions
+    // const beatPhase = (time * this.beatsPerSecond) % 1;
+    // 
+    // // Intense strobe pattern: multiple quick flashes per beat
+    // if (beatPhase < 0.05) {
+    //   // Strong flash at beat start
+    //   return 2.5;
+    // } else if (beatPhase < 0.08) {
+    //   // Quick off
+    //   return 0.05;
+    // } else if (beatPhase < 0.12) {
+    //   // Double flash
+    //   return 2.2;
+    // } else if (beatPhase < 0.15) {
+    //   return 0.05;
+    // } else if (beatPhase < 0.18) {
+    //   // Triple flash
+    //   return 2.0;
+    // } else if (beatPhase < 0.22) {
+    //   return 0.05;
+    // } else if (beatPhase < 0.25) {
+    //   // Another flash
+    //   return 1.8;
+    // } else if (beatPhase < 0.4) {
+    //   // Off period
+    //   return 0.1;
+    // } else if (beatPhase < 0.43) {
+    //   // Mid-beat strong flash
+    //   return 2.3;
+    // } else if (beatPhase < 0.46) {
+    //   return 0.05;
+    // } else if (beatPhase < 0.49) {
+    //   // Quick double flash
+    //   return 2.0;
+    // } else if (beatPhase < 0.52) {
+    //   return 0.05;
+    // } else if (beatPhase < 0.55) {
+    //   // Final flash before next beat
+    //   return 1.5;
+    // } else {
+    //   // Off until next beat
+    //   return 0.05;
+    // }
+  }
+}
+
 function PlayerCharacter({ controllerRef }) {
   return (
     <Ecctrl
@@ -41,14 +98,27 @@ function PlayerCharacter({ controllerRef }) {
   );
 }
 
-function FloatingOrb({ position, color, intensity = 1 }) {
+function FloatingOrb({ position, color, intensity = 1, raveBeat }) {
   const orbRef = useRef();
+  const lightRef = useRef();
+  const materialRef = useRef();
   
   useFrame((state) => {
     const time = state.clock.elapsedTime;
     if (orbRef.current) {
       orbRef.current.position.y = position[1] + Math.sin(time * 0.8 + position[0]) * 0.3;
       orbRef.current.rotation.y = time * 0.5;
+    }
+    
+    // Synced rave strobing effect - sharp on/off pattern
+    const flashIntensity = raveBeat.getFlashIntensity(time);
+    
+    if (lightRef.current) {
+      lightRef.current.intensity = 4 * intensity * flashIntensity;
+    }
+    
+    if (materialRef.current) {
+      materialRef.current.emissiveIntensity = intensity * flashIntensity;
     }
   });
 
@@ -57,6 +127,7 @@ function FloatingOrb({ position, color, intensity = 1 }) {
       <mesh>
         <sphereGeometry args={[0.4, 32, 32]} />
         <meshStandardMaterial 
+          ref={materialRef}
           color={color} 
           emissive={color} 
           emissiveIntensity={intensity}
@@ -65,19 +136,32 @@ function FloatingOrb({ position, color, intensity = 1 }) {
           metalness={0.8}
         />
       </mesh>
-      <pointLight position={[0, 0, 0]} intensity={4 * intensity} distance={15} color={color} decay={2} />
+      <pointLight ref={lightRef} position={[0, 0, 0]} intensity={4 * intensity} distance={15} color={color} decay={2} />
     </group>
   );
 }
 
-function GlowingCrystal({ position, color, size = 1 }) {
+function GlowingCrystal({ position, color, size = 1, raveBeat }) {
   const crystalRef = useRef();
+  const lightRef = useRef();
+  const materialRef = useRef();
   
   useFrame((state) => {
     const time = state.clock.elapsedTime;
     if (crystalRef.current) {
       crystalRef.current.rotation.y = time * 0.3;
       crystalRef.current.rotation.x = Math.sin(time * 0.4) * 0.1;
+    }
+    
+    // Synced rave strobing effect - sharp on/off pattern
+    const flashIntensity = raveBeat.getFlashIntensity(time);
+    
+    if (lightRef.current) {
+      lightRef.current.intensity = 3 * flashIntensity;
+    }
+    
+    if (materialRef.current) {
+      materialRef.current.emissiveIntensity = 0.6 * flashIntensity;
     }
   });
 
@@ -86,6 +170,7 @@ function GlowingCrystal({ position, color, size = 1 }) {
       <mesh castShadow>
         <octahedronGeometry args={[size, 0]} />
         <meshStandardMaterial 
+          ref={materialRef}
           color={color} 
           emissive={color} 
           emissiveIntensity={0.6}
@@ -96,7 +181,7 @@ function GlowingCrystal({ position, color, size = 1 }) {
           opacity={0.85}
         />
       </mesh>
-      <pointLight position={[0, 0, 0]} intensity={3} distance={12} color={color} decay={2} />
+      <pointLight ref={lightRef} position={[0, 0, 0]} intensity={3} distance={12} color={color} decay={2} />
     </group>
   );
 }
@@ -167,9 +252,25 @@ function MovingPlatform({ startPosition, range, speed = 0.5 }) {
   );
 }
 
+function FlashingGroundLight({ position, color, baseIntensity = 3, raveBeat }) {
+  const lightRef = useRef();
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    if (lightRef.current) {
+      // Synced rave strobing effect
+      const flashIntensity = raveBeat.getFlashIntensity(time);
+      lightRef.current.intensity = baseIntensity * flashIntensity;
+    }
+  });
+
+  return <pointLight ref={lightRef} position={position} intensity={baseIntensity} distance={10} color={color} decay={2} />;
+}
+
 export default function DarkScene() {
   const controllerRef = useRef();
   const { gl } = useThree();
+  const raveBeat = useRef(new RaveBeat(140)).current; // 140 BPM rave beat
 
   useEffect(() => {
     // Set background to pure black
@@ -229,12 +330,12 @@ export default function DarkScene() {
         </RigidBody>
 
         {/* Additional ground-level lights for better illumination */}
-        <pointLight position={[-6, 1, -6]} intensity={3} distance={10} color='#6a0dad' decay={2} />
-        <pointLight position={[6, 1, -6]} intensity={3} distance={10} color='#0d6aad' decay={2} />
-        <pointLight position={[-6, 1, 6]} intensity={3} distance={10} color='#ad0d6a' decay={2} />
-        <pointLight position={[6, 1, 6]} intensity={3} distance={10} color='#0dad6a' decay={2} />
-        <pointLight position={[0, 1, -10]} intensity={4} distance={12} color='#ad6a0d' decay={2} />
-        <pointLight position={[0, 1, 10]} intensity={4} distance={12} color='#6aad0d' decay={2} />
+        <FlashingGroundLight position={[-6, 1, -6]} color='#6a0dad' baseIntensity={3} raveBeat={raveBeat} />
+        <FlashingGroundLight position={[6, 1, -6]} color='#0d6aad' baseIntensity={3} raveBeat={raveBeat} />
+        <FlashingGroundLight position={[-6, 1, 6]} color='#ad0d6a' baseIntensity={3} raveBeat={raveBeat} />
+        <FlashingGroundLight position={[6, 1, 6]} color='#0dad6a' baseIntensity={3} raveBeat={raveBeat} />
+        <FlashingGroundLight position={[0, 1, -10]} color='#ad6a0d' baseIntensity={4} raveBeat={raveBeat} />
+        <FlashingGroundLight position={[0, 1, 10]} color='#6aad0d' baseIntensity={4} raveBeat={raveBeat} />
 
         {/* Dark pillars */}
         <DarkPillar position={[-8, 1.5, -8]} height={4} />
@@ -256,20 +357,20 @@ export default function DarkScene() {
         <MovingPlatform startPosition={[0, 1.5, 0]} range={4} speed={0.6} />
 
         {/* Floating orbs */}
-        <FloatingOrb position={[-6, 3.5, -6]} color='#6a0dad' intensity={1.2} />
-        <FloatingOrb position={[6, 3.5, -6]} color='#0d6aad' intensity={1.2} />
-        <FloatingOrb position={[-6, 3.5, 6]} color='#ad0d6a' intensity={1.2} />
-        <FloatingOrb position={[6, 3.5, 6]} color='#0dad6a' intensity={1.2} />
-        <FloatingOrb position={[0, 4.5, -10]} color='#ad6a0d' intensity={1.5} />
-        <FloatingOrb position={[0, 4.5, 10]} color='#6aad0d' intensity={1.5} />
+        <FloatingOrb position={[-6, 3.5, -6]} color='#6a0dad' intensity={1.2} raveBeat={raveBeat} />
+        <FloatingOrb position={[6, 3.5, -6]} color='#0d6aad' intensity={1.2} raveBeat={raveBeat} />
+        <FloatingOrb position={[-6, 3.5, 6]} color='#ad0d6a' intensity={1.2} raveBeat={raveBeat} />
+        <FloatingOrb position={[6, 3.5, 6]} color='#0dad6a' intensity={1.2} raveBeat={raveBeat} />
+        <FloatingOrb position={[0, 4.5, -10]} color='#ad6a0d' intensity={1.5} raveBeat={raveBeat} />
+        <FloatingOrb position={[0, 4.5, 10]} color='#6aad0d' intensity={1.5} raveBeat={raveBeat} />
 
         {/* Glowing crystals */}
-        <GlowingCrystal position={[-3, 0.8, -3]} color='#8b00ff' size={0.6} />
-        <GlowingCrystal position={[3, 0.8, -3]} color='#008bff' size={0.6} />
-        <GlowingCrystal position={[-3, 0.8, 3]} color='#ff008b' size={0.6} />
-        <GlowingCrystal position={[3, 0.8, 3]} color='#00ff8b' size={0.6} />
-        <GlowingCrystal position={[0, 0.8, -5]} color='#ff8b00' size={0.8} />
-        <GlowingCrystal position={[0, 0.8, 5]} color='#8bff00' size={0.8} />
+        <GlowingCrystal position={[-3, 0.8, -3]} color='#8b00ff' size={0.6} raveBeat={raveBeat} />
+        <GlowingCrystal position={[3, 0.8, -3]} color='#008bff' size={0.6} raveBeat={raveBeat} />
+        <GlowingCrystal position={[-3, 0.8, 3]} color='#ff008b' size={0.6} raveBeat={raveBeat} />
+        <GlowingCrystal position={[3, 0.8, 3]} color='#00ff8b' size={0.6} raveBeat={raveBeat} />
+        <GlowingCrystal position={[0, 0.8, -5]} color='#ff8b00' size={0.8} raveBeat={raveBeat} />
+        <GlowingCrystal position={[0, 0.8, 5]} color='#8bff00' size={0.8} raveBeat={raveBeat} />
 
         {/* Additional decorative elements */}
         <RigidBody type='fixed' colliders='cuboid' position={[-12, 0.5, 0]}>
