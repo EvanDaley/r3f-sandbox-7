@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import ThreeCanvas from "./modules/ThreeCanvas";
 import useSceneStore from "./stores/sceneStore";
 import RpgHud from "./modules/rpg/components/RpgHud";
+import LevelUpMessageQueue from "./modules/rpg/components/LevelUpMessageQueue";
 import NetworkingGateway from "./modules/networking/components/NetworkingGateway";
 import CommsOverlay from "./modules/networking/components/CommsOverlay";
 
@@ -38,6 +39,8 @@ function App() {
       <NetworkingGateway />
       <CommsOverlay />
       {currentSceneId === "rpg" && <RpgHud />}
+      {currentSceneId === "modelingSandbox1" && <RpgHud position="top-right" />}
+      {(currentSceneId === "rpg" || currentSceneId === "modelingSandbox1") && <LevelUpMessageQueue />}
     </>
   );
 }

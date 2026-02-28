@@ -75,7 +75,7 @@ export default function ParticleEffectsRenderer({ particlesRef }) {
           void main() {
             vColor = color;
             vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-            gl_PointSize = size * 110.0 * uPixelRatio * (1.0 / max(0.001, -mvPosition.z));
+            gl_PointSize = size * 220.0 * uPixelRatio * (1.0 / max(0.001, -mvPosition.z));
             gl_Position = projectionMatrix * mvPosition;
           }
         `}

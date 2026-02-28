@@ -80,7 +80,7 @@ const catalog = {
         radius: 2.6 + tier * 0.25,
         color: COLOR.levelGlow,
         upwardBoost: 2.4,
-        size: 0.18,
+        size: 0.45,
       }),
       ...spawnBurst({
         origin,
@@ -89,7 +89,7 @@ const catalog = {
         color: COLOR.levelCore,
         spread: 0.2,
         life: [0.7, 1.4],
-        size: [0.08, 0.22],
+        size: [0.2, 0.55],
       }),
       ...spawnBurst({
         origin,
@@ -98,7 +98,7 @@ const catalog = {
         color: COLOR.levelSpark,
         spread: 0.6,
         life: [0.5, 1.05],
-        size: [0.06, 0.14],
+        size: [0.15, 0.35],
       }),
     ];
   },
@@ -109,20 +109,20 @@ const catalog = {
     return [
       ...spawnBurst({
         origin,
-        count: 26,
+        count: 40,
         speed: { min: 1.1, max: 3.1 },
         color,
         spread: 0.22,
         life: [0.24, 0.58],
-        size: [0.05, 0.12],
+        size: [0.12, 0.3],
       }),
       ...spawnRing({
         origin,
-        count: 14,
-        radius: 1.2,
+        count: 20,
+        radius: 1.5,
         color,
         upwardBoost: 1.2,
-        size: 0.08,
+        size: 0.2,
       }),
     ];
   },

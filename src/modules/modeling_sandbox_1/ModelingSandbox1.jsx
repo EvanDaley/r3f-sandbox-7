@@ -1,11 +1,16 @@
 import { KeyboardControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
-import { Suspense, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import CharacterModel from '../third_person_blender_integrated/CharacterModel';
-import { RPG_KEYBOARD_MAP } from '../rpg/config/progressionConfig';
+import { RPG_KEYBOARD_MAP, RPG_TRAINING_STATIONS } from '../rpg/config/progressionConfig';
 import Ecctrl from '../third_person_controller/Ecctrl';
+import TrainingStation from '../rpg/components/TrainingStation';
+import useNearbyInteractables from '../rpg/hooks/useNearbyInteractables';
+import ProgressionSystem from '../rpg/systems/ProgressionSystem';
+import useRpgProgressionStore from '../rpg/stores/useRpgProgressionStore';
+import { ParticleEffectsProvider } from '@/support_modules/particle_effects';
 
 const SPAWN_POINT = new THREE.Vector3(0, 1.5, 0);
 
@@ -32,6 +37,44 @@ function PlayerCharacter({ controllerRef }) {
 
 export default function ModelingSandbox1() {
   const controllerRef = useRef();
+  const inputRef = useRef({ interact: false });
+  const resetProgression = useRpgProgressionStore((state) => state.resetProgression);
+
+  const trainingStations = useMemo(
+    () => RPG_TRAINING_STATIONS.map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
+    []
+  );
+
+  const nearbyInteractableIds = useNearbyInteractables({
+    controllerRef,
+    interactables: trainingStations,
+  });
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.code === 'KeyE') {
+        inputRef.current.interact = true;
+      }
+
+      if (event.code === 'KeyR') {
+        resetProgression();
+      }
+    };
+
+    const onKeyUp = (event) => {
+      if (event.code === 'KeyE') {
+        inputRef.current.interact = false;
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [resetProgression]);
 
   useFrame(() => {
     const rigidBody = controllerRef.current?.group;
@@ -94,27 +137,45 @@ export default function ModelingSandbox1() {
         color='#ffffff' 
       />
 
-      <Physics timeStep='vary'>
-        <KeyboardControls map={RPG_KEYBOARD_MAP}>
-          <PlayerCharacter controllerRef={controllerRef} />
-        </KeyboardControls>
+      <ParticleEffectsProvider>
+        <Physics timeStep='vary'>
+          <KeyboardControls map={RPG_KEYBOARD_MAP}>
+            <PlayerCharacter controllerRef={controllerRef} />
+          </KeyboardControls>
 
-        {/* Ground plane - realistic surface */}
-        <RigidBody type='fixed' position={[0, 0, 0]}>
-          <CuboidCollider args={[100, 0.1, 100]} position={[0, -0.1, 0]} />
-          <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[200, 200]} />
-            <meshStandardMaterial 
-              color='#8B7355' 
-              roughness={0.9} 
-              metalness={0.1}
+          <ProgressionSystem
+            controllerRef={controllerRef}
+            trainingStations={trainingStations}
+            inputRef={inputRef}
+            nearbyInteractableIds={nearbyInteractableIds}
+          />
+
+          {/* Ground plane - realistic surface */}
+          <RigidBody type='fixed' position={[0, 0, 0]}>
+            <CuboidCollider args={[100, 0.1, 100]} position={[0, -0.1, 0]} />
+            <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[200, 200]} />
+              <meshStandardMaterial 
+                color='#8B7355' 
+                roughness={0.9} 
+                metalness={0.1}
+              />
+            </mesh>
+          </RigidBody>
+
+          {/* Grid helper for reference */}
+          <gridHelper args={[200, 200, '#888888', '#cccccc']} position={[0, 0.01, 0]} />
+
+          {/* Training stations / interactables */}
+          {trainingStations.map((station) => (
+            <TrainingStation
+              key={station.id}
+              station={station}
+              showInteractPrompt={nearbyInteractableIds.has(station.id)}
             />
-          </mesh>
-        </RigidBody>
-
-        {/* Grid helper for reference */}
-        <gridHelper args={[200, 200, '#888888', '#cccccc']} position={[0, 0.01, 0]} />
-      </Physics>
+          ))}
+        </Physics>
+      </ParticleEffectsProvider>
     </>
   );
 }

@@ -6,81 +6,82 @@ const MAX_WIDTH = 520;
 const MIN_HEIGHT = 260;
 const MAX_HEIGHT = 720;
 
-const styles = {
-  launcher: {
-    position: 'fixed',
-    left: 12,
-    bottom: 64,
-    zIndex: 56,
-    border: '1px solid rgba(255,255,255,0.24)',
-    borderRadius: 999,
-    background: 'linear-gradient(135deg, rgba(124,58,237,0.85), rgba(79,70,229,0.75))',
-    boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 700,
-    padding: '9px 12px',
-    cursor: 'pointer',
-    backdropFilter: 'blur(6px)',
-  },
-  panel: {
-    color: '#f8fafc',
-    background: 'rgba(13, 18, 30, 0.9)',
-    borderRadius: 14,
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    position: 'fixed',
-    left: 12,
-    bottom: 114,
-    zIndex: 56,
-    backdropFilter: 'blur(10px)',
-    boxSizing: 'border-box',
-    boxShadow: '0 20px 45px rgba(0,0,0,0.45)',
-    overflow: 'hidden',
-    display: 'grid',
-    gridTemplateRows: 'auto auto 1fr auto',
-  },
-  resizeHandle: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: '24px',
-    height: '24px',
-    cursor: 'nesw-resize',
-    zIndex: 100,
-    background: 'rgba(255,255,255,0.2)',
-    borderTopRightRadius: 14,
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-    padding: '4px',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '12px 14px 8px',
-    borderBottom: '1px solid rgba(255,255,255,0.12)',
-  },
-  totals: {
-    fontSize: 12,
-    opacity: 0.8,
-    padding: '8px 14px 10px',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
-  },
-  skillsList: {
-    display: 'grid',
-    gap: 10,
-    padding: '12px 14px',
-    alignContent: 'start',
-    overflowY: 'auto',
-  },
-  footer: {
-    fontSize: 11,
-    opacity: 0.78,
-    padding: '10px 14px 16px 34px',
-    borderTop: '1px solid rgba(255,255,255,0.08)',
-    background: 'rgba(0,0,0,0.2)',
-  },
+const getStyles = (position = 'bottom-left') => {
+  const isTopRight = position === 'top-right';
+  
+  return {
+    launcher: {
+      position: 'fixed',
+      ...(isTopRight ? { right: 12, top: 12 } : { left: 12, bottom: 64 }),
+      zIndex: 56,
+      border: '1px solid rgba(255,255,255,0.24)',
+      borderRadius: 999,
+      background: 'linear-gradient(135deg, rgba(124,58,237,0.85), rgba(79,70,229,0.75))',
+      boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
+      color: '#fff',
+      fontSize: 12,
+      fontWeight: 700,
+      padding: '9px 12px',
+      cursor: 'pointer',
+      backdropFilter: 'blur(6px)',
+    },
+    panel: {
+      color: '#f8fafc',
+      background: 'rgba(13, 18, 30, 0.9)',
+      borderRadius: 14,
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      position: 'fixed',
+      ...(isTopRight ? { right: 12, top: 62 } : { left: 12, bottom: 114 }),
+      zIndex: 56,
+      backdropFilter: 'blur(10px)',
+      boxSizing: 'border-box',
+      boxShadow: '0 20px 45px rgba(0,0,0,0.45)',
+      overflow: 'hidden',
+      display: 'grid',
+      gridTemplateRows: 'auto auto 1fr auto',
+    },
+    resizeHandle: {
+      position: 'absolute',
+      ...(isTopRight ? { top: 0, right: 0 } : { bottom: 0, left: 0 }),
+      width: '24px',
+      height: '24px',
+      cursor: isTopRight ? 'nwse-resize' : 'nesw-resize',
+      zIndex: 100,
+      background: 'rgba(255,255,255,0.2)',
+      ...(isTopRight ? { borderBottomLeftRadius: 14 } : { borderTopRightRadius: 14 }),
+      display: 'flex',
+      alignItems: isTopRight ? 'flex-start' : 'flex-start',
+      justifyContent: isTopRight ? 'flex-end' : 'flex-start',
+      padding: '4px',
+    },
+    header: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '12px 14px 8px',
+      borderBottom: '1px solid rgba(255,255,255,0.12)',
+    },
+    totals: {
+      fontSize: 12,
+      opacity: 0.8,
+      padding: '8px 14px 10px',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+    },
+    skillsList: {
+      display: 'grid',
+      gap: 10,
+      padding: '12px 14px',
+      alignContent: 'start',
+      overflowY: 'auto',
+    },
+    footer: {
+      fontSize: 11,
+      opacity: 0.78,
+      padding: '10px 14px 16px 34px',
+      borderTop: '1px solid rgba(255,255,255,0.08)',
+      background: 'rgba(0,0,0,0.2)',
+    },
+  };
 };
 
 const ProgressBar = ({ color, value }) => (
@@ -96,7 +97,7 @@ const ProgressBar = ({ color, value }) => (
   </div>
 );
 
-export default function RpgHud() {
+export default function RpgHud({ position = 'bottom-left' }) {
   const skills = useRpgProgressionStore((state) => state.skills);
   const totalLevel = useRpgProgressionStore((state) => state.totalLevel);
   const totalXp = useRpgProgressionStore((state) => state.totalXp);
@@ -105,13 +106,16 @@ export default function RpgHud() {
   const [isOpen, setIsOpen] = useState(false);
   const [size, setSize] = useState({ width: 360, height: 380 });
 
+  const styles = getStyles(position);
+  const isTopRight = position === 'top-right';
+
   const panelStyle = useMemo(
     () => ({
       ...styles.panel,
       width: `${size.width}px`,
       height: `${size.height}px`,
     }),
-    [size.height, size.width]
+    [size.height, size.width, styles.panel]
   );
 
   const startResize = (event) => {
@@ -128,8 +132,8 @@ export default function RpgHud() {
       const deltaY = moveEvent.clientY - startY;
 
       setSize({
-        width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth - deltaX)),
-        height: Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeight - deltaY)),
+        width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, isTopRight ? startWidth + deltaX : startWidth - deltaX)),
+        height: Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, isTopRight ? startHeight + deltaY : startHeight - deltaY)),
       });
     };
 
@@ -156,7 +160,7 @@ export default function RpgHud() {
             style={styles.resizeHandle}
             onMouseDown={startResize}
           >
-            ◢
+            {isTopRight ? '◥' : '◢'}
           </button>
 
           <div style={styles.header}>
