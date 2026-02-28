@@ -1,7 +1,7 @@
-import { Html, KeyboardControls, Text } from '@react-three/drei';
+import { Html, KeyboardControls, Text, Stars } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
-import { Suspense, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import CharacterModel from '../third_person_blender_integrated/CharacterModel';
 import { RPG_KEYBOARD_MAP } from '../rpg/config/progressionConfig';
@@ -267,6 +267,143 @@ function FlashingGroundLight({ position, color, baseIntensity = 3, raveBeat }) {
   return <pointLight ref={lightRef} position={position} intensity={baseIntensity} distance={10} color={color} decay={2} />;
 }
 
+function FloatingParticles({ count = 100 }) {
+  const particlesRef = useRef();
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    if (particlesRef.current) {
+      particlesRef.current.rotation.y = time * 0.05;
+      particlesRef.current.rotation.x = Math.sin(time * 0.1) * 0.1;
+    }
+  });
+
+  const particles = useMemo(() => {
+    return Array.from({ length: count }).map(() => ({
+      position: [
+        (Math.random() - 0.5) * 60,
+        Math.random() * 20 + 2,
+        (Math.random() - 0.5) * 60,
+      ],
+      size: Math.random() * 0.05 + 0.02,
+    }));
+  }, [count]);
+
+  return (
+    <group ref={particlesRef}>
+      {particles.map((particle, i) => (
+        <mesh key={i} position={particle.position}>
+          <sphereGeometry args={[particle.size, 8, 8]} />
+          <meshStandardMaterial
+            color='#6a0dad'
+            emissive='#6a0dad'
+            emissiveIntensity={0.5}
+            transparent
+            opacity={0.3}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function GlowingRune({ position, rotation = [0, 0, 0] }) {
+  const runeRef = useRef();
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    if (runeRef.current) {
+      runeRef.current.rotation.y = rotation[1] + time * 0.2;
+      const pulse = Math.sin(time * 2) * 0.1 + 0.9;
+      runeRef.current.scale.setScalar(pulse);
+    }
+  });
+
+  return (
+    <group ref={runeRef} position={position} rotation={rotation}>
+      <mesh>
+        <ringGeometry args={[0.8, 1.2, 32]} />
+        <meshStandardMaterial
+          color='#8b00ff'
+          emissive='#8b00ff'
+          emissiveIntensity={0.8}
+          transparent
+          opacity={0.6}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      <mesh>
+        <ringGeometry args={[0.4, 0.6, 16]} />
+        <meshStandardMaterial
+          color='#ff008b'
+          emissive='#ff008b'
+          emissiveIntensity={1.0}
+          transparent
+          opacity={0.7}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      <pointLight position={[0, 0, 0]} intensity={2} distance={8} color='#8b00ff' decay={2} />
+    </group>
+  );
+}
+
+function DarkArch({ position, height = 6, width = 4 }) {
+  const archRef = useRef();
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    if (archRef.current) {
+      // Subtle pulsing glow
+      const pulse = Math.sin(time * 0.5) * 0.05 + 0.95;
+      archRef.current.children.forEach((child) => {
+        if (child.material) {
+          child.material.emissiveIntensity = 0.1 * pulse;
+        }
+      });
+    }
+  });
+
+  return (
+    <group ref={archRef} position={position}>
+      <RigidBody type='fixed' colliders='cuboid' position={[-width / 2, height / 2, 0]}>
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[0.5, height, 0.5]} />
+          <meshStandardMaterial
+            color='#0a0a0f'
+            roughness={0.9}
+            metalness={0.1}
+            emissive='#1a1a2e'
+            emissiveIntensity={0.1}
+          />
+        </mesh>
+      </RigidBody>
+      <RigidBody type='fixed' colliders='cuboid' position={[width / 2, height / 2, 0]}>
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[0.5, height, 0.5]} />
+          <meshStandardMaterial
+            color='#0a0a0f'
+            roughness={0.9}
+            metalness={0.1}
+            emissive='#1a1a2e'
+            emissiveIntensity={0.1}
+          />
+        </mesh>
+      </RigidBody>
+      <mesh castShadow receiveShadow>
+        <torusGeometry args={[width / 2, 0.3, 16, 32, Math.PI]} />
+        <meshStandardMaterial
+          color='#0a0a0f'
+          roughness={0.9}
+          metalness={0.1}
+          emissive='#1a1a2e'
+          emissiveIntensity={0.1}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 export default function DarkScene() {
   const controllerRef = useRef();
   const { gl } = useThree();
@@ -298,17 +435,21 @@ export default function DarkScene() {
   return (
     <>
       <color attach='background' args={['#000000']} />
-      <fog attach='fog' args={['#000000', 15, 50]} />
-      <ambientLight intensity={0.1} color='#0a0a0f' />
-      <hemisphereLight intensity={0.05} color='#000000' groundColor='#000000' />
+      <fog attach='fog' args={['#050510', 12, 45]} />
+      <Stars radius={100} depth={50} count={2000} factor={4} fade speed={0.5} />
+      <ambientLight intensity={0.08} color='#0a0a0f' />
+      <hemisphereLight intensity={0.03} color='#000000' groundColor='#000000' />
       <directionalLight 
         castShadow 
         position={[10, 20, 10]} 
-        intensity={0.2} 
+        intensity={0.15} 
         color='#1a1a2e' 
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0001}
       />
+      
+      {/* Atmospheric particles */}
+      <FloatingParticles count={80} />
 
       <Physics timeStep='vary'>
         <KeyboardControls map={RPG_KEYBOARD_MAP}>
@@ -372,6 +513,20 @@ export default function DarkScene() {
         <GlowingCrystal position={[0, 0.8, -5]} color='#ff8b00' size={0.8} raveBeat={raveBeat} />
         <GlowingCrystal position={[0, 0.8, 5]} color='#8bff00' size={0.8} raveBeat={raveBeat} />
 
+        {/* Dark arches for atmosphere */}
+        <DarkArch position={[-15, 0, -15]} height={8} width={5} />
+        <DarkArch position={[15, 0, -15]} height={8} width={5} />
+        <DarkArch position={[-15, 0, 15]} height={8} width={5} />
+        <DarkArch position={[15, 0, 15]} height={8} width={5} />
+
+        {/* Glowing runes */}
+        <GlowingRune position={[-8, 4, -8]} rotation={[Math.PI / 2, 0, 0]} />
+        <GlowingRune position={[8, 4, -8]} rotation={[Math.PI / 2, Math.PI / 4, 0]} />
+        <GlowingRune position={[-8, 4, 8]} rotation={[Math.PI / 2, Math.PI / 2, 0]} />
+        <GlowingRune position={[8, 4, 8]} rotation={[Math.PI / 2, Math.PI * 0.75, 0]} />
+        <GlowingRune position={[0, 5, -12]} rotation={[Math.PI / 2, 0, 0]} />
+        <GlowingRune position={[0, 5, 12]} rotation={[Math.PI / 2, Math.PI / 2, 0]} />
+
         {/* Additional decorative elements */}
         <RigidBody type='fixed' colliders='cuboid' position={[-12, 0.5, 0]}>
           <mesh castShadow receiveShadow>
@@ -398,6 +553,21 @@ export default function DarkScene() {
             />
           </mesh>
         </RigidBody>
+
+        {/* Distant floating structures */}
+        <group position={[0, 8, -25]}>
+          <mesh>
+            <boxGeometry args={[3, 0.3, 3]} />
+            <meshStandardMaterial
+              color='#0a0a0f'
+              emissive='#1a1a2e'
+              emissiveIntensity={0.2}
+              transparent
+              opacity={0.6}
+            />
+          </mesh>
+          <pointLight position={[0, 0, 0]} intensity={1} distance={10} color='#6a0dad' decay={2} />
+        </group>
 
         {/* Title text */}
         <Text 
