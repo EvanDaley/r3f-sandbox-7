@@ -167,13 +167,13 @@ export default function ModelingSandbox1() {
           <gridHelper args={[200, 200, '#888888', '#cccccc']} position={[0, 0.01, 0]} />
 
           {/* Training stations / interactables */}
-          {trainingStations.map((station) => (
+          {/* {trainingStations.map((station) => (
             <TrainingStation
               key={station.id}
               station={station}
               showInteractPrompt={nearbyInteractableIds.has(station.id)}
             />
-          ))}
+          ))} */}
         </Physics>
       </ParticleEffectsProvider>
     </>
