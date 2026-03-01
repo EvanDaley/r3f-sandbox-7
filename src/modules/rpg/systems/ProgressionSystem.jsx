@@ -7,7 +7,7 @@ import { INTERACTION_RANGE } from '../hooks/useNearbyInteractables';
 import { useParticleEffects } from '@/support_modules/particle_effects';
 
 const ACTION_COOLDOWN = 0.45;
-const RUNNING_XP_PER_SECOND = 5.5;
+const RUNNING_XP_PER_SECOND = 27.5;
 const MIN_RUNNING_SPEED = 0.25;
 
 const INTERACTION_ANIMATION_BY_SKILL = Object.freeze({

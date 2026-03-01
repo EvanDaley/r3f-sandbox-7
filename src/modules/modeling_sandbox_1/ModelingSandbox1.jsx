@@ -11,6 +11,7 @@ import useNearbyInteractables from '../rpg/hooks/useNearbyInteractables';
 import ProgressionSystem from '../rpg/systems/ProgressionSystem';
 import useRpgProgressionStore from '../rpg/stores/useRpgProgressionStore';
 import { ParticleEffectsProvider } from '@/support_modules/particle_effects';
+import Robot from './robots/Robot';
 
 const SPAWN_POINT = new THREE.Vector3(0, 1.5, 0);
 
@@ -165,6 +166,16 @@ export default function ModelingSandbox1() {
 
           {/* Grid helper for reference */}
           <gridHelper args={[200, 200, '#888888', '#cccccc']} position={[0, 0.01, 0]} />
+
+          {/* Robot with animations */}
+          <Suspense fallback={null}>
+            <Robot 
+              position={[5, 0, 0]} 
+              scale={1}
+              autoCycle={true}
+              cycleInterval={3000}
+            />
+          </Suspense>
 
           {/* Training stations / interactables */}
           {/* {trainingStations.map((station) => (
