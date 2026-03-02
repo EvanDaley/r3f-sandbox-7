@@ -1,10 +1,36 @@
-import { Html, OrbitControls } from '@react-three/drei';
+import { KeyboardControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
+import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { RPG_KEYBOARD_MAP } from '../rpg/config/progressionConfig';
+import Ecctrl from '../third_person_controller/Ecctrl';
 import TowerDefenseEngine from './core/TowerDefenseEngine';
+import useTowerDefenseUiStore from './stores/useTowerDefenseUiStore';
 
 const dummy = new THREE.Object3D();
+const SPAWN_POINT = new THREE.Vector3(0, 1.5, 8);
+
+function PlayerCharacter({ controllerRef }) {
+  return (
+    <Ecctrl
+      springK={2}
+      dampingC={0.2}
+      camInitDis={-6}
+      camMaxDis={-10}
+      camCollisionOffset={0.3}
+      camInitDir={{ x: 0.26, y: 0 }}
+      camTargetPos={{ x: 0, y: 0.5, z: 0 }}
+      position={SPAWN_POINT.toArray()}
+      ref={controllerRef}
+    >
+      <mesh castShadow>
+        <boxGeometry args={[0.8, 0.8, 0.8]} />
+        <meshStandardMaterial color='#60a5fa' roughness={0.5} metalness={0.1} />
+      </mesh>
+    </Ecctrl>
+  );
+}
 
 function EnemyTypeInstances({ engine, typeIndex }) {
   const meshRef = useRef();
@@ -38,7 +64,7 @@ function EnemyTypeInstances({ engine, typeIndex }) {
   const enemyType = engine.enemyTypes[typeIndex];
 
   return (
-    <instancedMesh ref={meshRef} args={[null, null, engine.maxEnemies]} castShadow>
+    <instancedMesh ref={meshRef} args={[null, null, engine.maxEnemies]} castShadow frustumCulled={false}>
       <boxGeometry args={[enemyType.size, enemyType.size, enemyType.size]} />
       <meshStandardMaterial color={enemyType.color} roughness={0.55} metalness={0.1} />
     </instancedMesh>
@@ -78,77 +104,11 @@ function WallInstances({ engine, wallVersion }) {
       args={[null, null, engine.gridSize * engine.gridSize]}
       castShadow
       receiveShadow
+      frustumCulled={false}
     >
       <boxGeometry args={[engine.cellSize * 0.95, 1, engine.cellSize * 0.95]} />
       <meshStandardMaterial color='#334155' roughness={0.85} />
     </instancedMesh>
-  );
-}
-
-function SceneHud({ engine, wallVersion }) {
-  const [stats, setStats] = useState({ activeEnemies: 0, pendingSpawns: 0, waveNumber: 0, amplifierCount: 0 });
-
-  useFrame(() => {
-    const activeEnemies = engine.enemies.reduce((count, enemy) => count + Number(enemy.active), 0);
-    const pendingSpawns = engine.pendingSpawns.length;
-    const waveNumber = engine.waveNumber;
-    const amplifierCount = engine.activeAmplifierIds.length;
-    setStats((prev) => {
-      if (
-        prev.activeEnemies === activeEnemies
-        && prev.pendingSpawns === pendingSpawns
-        && prev.waveNumber === waveNumber
-        && prev.amplifierCount === amplifierCount
-      ) return prev;
-
-      return { activeEnemies, pendingSpawns, waveNumber, amplifierCount };
-    });
-  });
-
-  return (
-    <Html position={[-22, 8, -22]} transform={false}>
-      <div
-        style={{
-          width: 310,
-          borderRadius: 10,
-          background: 'rgba(15, 23, 42, 0.82)',
-          color: '#e2e8f0',
-          padding: '12px 14px',
-          fontFamily: 'ui-sans-serif, system-ui',
-          fontSize: 13,
-          lineHeight: 1.4,
-          boxShadow: '0 6px 20px rgba(0,0,0,0.28)',
-          backdropFilter: 'blur(2px)',
-        }}
-      >
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>Tower Defense Sandbox 1</div>
-        <div>Click terrain to place/remove a wall.</div>
-        <div>Press <b>N</b> to force a new wave.</div>
-        <div>Press <b>K</b> to add a random skull amplifier.</div>
-        <div>Home base target: (0, 0, 0)</div>
-        <div style={{ marginTop: 8 }}>Wave: {stats.waveNumber}</div>
-        <div>Active enemies: {stats.activeEnemies} / {engine.maxEnemies}</div>
-        <div>Queued spawns: {stats.pendingSpawns}</div>
-        <div>Amplifiers: {stats.amplifierCount}</div>
-        <div>Walls: {engine.walls.size}</div>
-        <div>Wall changes: {wallVersion}</div>
-
-        <div style={{ marginTop: 8, fontWeight: 700 }}>Enemy Types</div>
-        {engine.enemyTypes.map((type) => (
-          <div key={type.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 99, background: type.color, display: 'inline-block' }} />
-            <span>{type.label}</span>
-            <span style={{ marginLeft: 'auto', opacity: 0.9 }}>SPD {type.baseSpeed.toFixed(1)} | HP {type.baseHealth}</span>
-          </div>
-        ))}
-
-        <div style={{ marginTop: 8, fontWeight: 700 }}>Active Skulls</div>
-        {engine.activeAmplifiers.length === 0 && <div style={{ opacity: 0.8 }}>None yet.</div>}
-        {engine.activeAmplifiers.map((amp) => (
-          <div key={amp.id}>☠ {amp.label}: {amp.description}</div>
-        ))}
-      </div>
-    </Html>
   );
 }
 
@@ -163,28 +123,63 @@ export default function TowerDefenseSandbox1() {
     []
   );
 
+  const setSnapshot = useTowerDefenseUiStore((state) => state.setSnapshot);
+  const resetHud = useTowerDefenseUiStore((state) => state.reset);
+
   const [wallVersion, setWallVersion] = useState(0);
-  const [, setRefreshTick] = useState(0);
+  const controllerRef = useRef();
 
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.code === 'KeyK') {
         engine.forceAddAmplifier();
-        setRefreshTick((v) => v + 1);
       }
 
       if (event.code === 'KeyN') {
         engine.forceNextWave(performance.now() / 1000);
-        setRefreshTick((v) => v + 1);
       }
     };
 
+    const onForceWave = () => {
+      engine.forceNextWave(performance.now() / 1000);
+    };
+
+    const onAddAmplifier = () => {
+      engine.forceAddAmplifier();
+    };
+
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [engine]);
+    window.addEventListener('td:force-wave', onForceWave);
+    window.addEventListener('td:add-amplifier', onAddAmplifier);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('td:force-wave', onForceWave);
+      window.removeEventListener('td:add-amplifier', onAddAmplifier);
+      resetHud();
+    };
+  }, [engine, resetHud]);
 
   useFrame((state, delta) => {
     engine.update(Math.min(delta, 1 / 24), state.clock.getElapsedTime());
+
+    const rigidBody = controllerRef.current?.group;
+    if (rigidBody && rigidBody.translation().y < -10) {
+      rigidBody.setTranslation(SPAWN_POINT, true);
+      rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    }
+
+    const activeEnemies = engine.enemies.reduce((count, enemy) => count + Number(enemy.active), 0);
+    setSnapshot({
+      waveNumber: engine.waveNumber,
+      activeEnemies,
+      maxEnemies: engine.maxEnemies,
+      pendingSpawns: engine.pendingSpawns.length,
+      wallCount: engine.walls.size,
+      amplifierCount: engine.activeAmplifierIds.length,
+      activeAmplifiers: engine.activeAmplifiers,
+      enemyTypes: engine.enemyTypes,
+    });
   });
 
   const gridWorldSize = engine.gridSize * engine.cellSize;
@@ -197,33 +192,40 @@ export default function TowerDefenseSandbox1() {
       <hemisphereLight intensity={0.55} color='#ffffff' groundColor='#6b7280' />
       <directionalLight castShadow position={[16, 24, 10]} intensity={1.15} shadow-mapSize={[2048, 2048]} />
 
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-        onClick={(event) => {
-          event.stopPropagation();
-          const { x, z } = event.point;
-          const cell = engine.worldToCell(x, z);
-          engine.toggleWall(cell.x, cell.z);
-          setWallVersion((value) => value + 1);
-        }}
-      >
-        <planeGeometry args={[gridWorldSize, gridWorldSize]} />
-        <meshStandardMaterial color='#8B7355' roughness={0.92} metalness={0.05} />
-      </mesh>
+      <Physics timeStep='vary'>
+        <KeyboardControls map={RPG_KEYBOARD_MAP}>
+          <PlayerCharacter controllerRef={controllerRef} />
+        </KeyboardControls>
 
-      <gridHelper args={[gridWorldSize, engine.gridSize, '#64748b', '#94a3b8']} position={[0, 0.01, 0]} />
+        <RigidBody type='fixed' colliders={false}>
+          <CuboidCollider args={[gridWorldSize / 2, 0.1, gridWorldSize / 2]} position={[0, -0.1, 0]} />
+        </RigidBody>
 
-      <mesh position={[0, 0.35, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[1, 1.3, 0.7, 24]} />
-        <meshStandardMaterial color='#22c55e' roughness={0.5} />
-      </mesh>
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+          onClick={(event) => {
+            event.stopPropagation();
+            const { x, z } = event.point;
+            const cell = engine.worldToCell(x, z);
+            engine.toggleWall(cell.x, cell.z);
+            setWallVersion((value) => value + 1);
+          }}
+        >
+          <planeGeometry args={[gridWorldSize, gridWorldSize]} />
+          <meshStandardMaterial color='#8B7355' roughness={0.92} metalness={0.05} />
+        </mesh>
 
-      <WallInstances engine={engine} wallVersion={wallVersion} />
-      <EnemyInstances engine={engine} />
-      <SceneHud engine={engine} wallVersion={wallVersion} />
+        <gridHelper args={[gridWorldSize, engine.gridSize, '#64748b', '#94a3b8']} position={[0, 0.01, 0]} />
 
-      <OrbitControls makeDefault target={[0, 0, 0]} maxPolarAngle={Math.PI * 0.49} minDistance={14} maxDistance={80} />
+        <mesh position={[0, 0.35, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[1, 1.3, 0.7, 24]} />
+          <meshStandardMaterial color='#22c55e' roughness={0.5} />
+        </mesh>
+
+        <WallInstances engine={engine} wallVersion={wallVersion} />
+        <EnemyInstances engine={engine} />
+      </Physics>
     </>
   );
 }

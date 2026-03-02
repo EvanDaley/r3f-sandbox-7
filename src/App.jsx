@@ -7,6 +7,7 @@ import RpgHud from "./modules/rpg/components/RpgHud";
 import LevelUpMessageQueue from "./modules/rpg/components/LevelUpMessageQueue";
 import NetworkingGateway from "./modules/networking/components/NetworkingGateway";
 import CommsOverlay from "./modules/networking/components/CommsOverlay";
+import TowerDefenseHud from "./modules/tower_defense_sandbox_1/components/TowerDefenseHud";
 
 const EcctrlJoystickControls = () => {
   const [isTouchScreen, setIsTouchScreen] = useState(false);
@@ -41,6 +42,7 @@ function App() {
       {currentSceneId === "rpg" && <RpgHud />}
       {currentSceneId === "modelingSandbox1" && <RpgHud position="top-right" />}
       {(currentSceneId === "rpg" || currentSceneId === "modelingSandbox1") && <LevelUpMessageQueue />}
+      {currentSceneId === "towerDefenseSandbox1" && <TowerDefenseHud />}
     </>
   );
 }
