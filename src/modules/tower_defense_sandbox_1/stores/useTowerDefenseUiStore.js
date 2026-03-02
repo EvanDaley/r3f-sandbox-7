@@ -7,6 +7,8 @@ const initialState = {
   pendingSpawns: 0,
   wallCount: 0,
   amplifierCount: 0,
+  turretCount: 0,
+  buildSelection: 'wall',
   activeAmplifiers: [],
   enemyTypes: [],
 };

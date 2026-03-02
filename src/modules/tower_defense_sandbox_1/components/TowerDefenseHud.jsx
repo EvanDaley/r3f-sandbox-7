@@ -43,6 +43,8 @@ export default function TowerDefenseHud() {
   const pendingSpawns = useTowerDefenseUiStore((state) => state.pendingSpawns);
   const wallCount = useTowerDefenseUiStore((state) => state.wallCount);
   const amplifierCount = useTowerDefenseUiStore((state) => state.amplifierCount);
+  const turretCount = useTowerDefenseUiStore((state) => state.turretCount);
+  const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
   const activeAmplifiers = useTowerDefenseUiStore((state) => state.activeAmplifiers);
   const enemyTypes = useTowerDefenseUiStore((state) => state.enemyTypes);
 
@@ -66,6 +68,8 @@ export default function TowerDefenseHud() {
             <div>Queued spawns: {pendingSpawns}</div>
             <div>Amplifiers: {amplifierCount}</div>
             <div>Walls: {wallCount}</div>
+            <div>Turrets: {turretCount}</div>
+            <div>Build mode: {buildSelection}</div>
           </div>
 
           <div style={{ padding: '10px 14px', display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -91,7 +95,7 @@ export default function TowerDefenseHud() {
           <div style={{ padding: '10px 14px', fontSize: 11, opacity: 0.85 }}>
             <div>WASD: Move character</div>
             <div>Middle mouse: orbit camera</div>
-            <div>Click ground: place/remove wall</div>
+            <div>Right click ground: place/remove selected build</div>
             <div>N: Force wave · K: Add skull</div>
             {activeAmplifiers.map((amp) => (
               <div key={amp.id}>☠ {amp.label}</div>

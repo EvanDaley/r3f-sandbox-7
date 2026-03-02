@@ -84,6 +84,8 @@ export default class TowerDefenseEngine {
 
     this.halfGrid = Math.floor(gridSize / 2);
     this.walls = new Set();
+    this.turrets = new Set();
+    this.projectiles = [];
 
     this.pathfindingStrategy = new FlowFieldPathfindingStrategy({
       gridSize: this.gridSize,
@@ -94,6 +96,7 @@ export default class TowerDefenseEngine {
 
     this.pendingSpawns = [];
     this.lastWaveTime = -waveInterval;
+    this.nextTurretFireTime = 0;
 
     this.enemies = Array.from({ length: maxEnemies }, (_, id) => ({
       id,
@@ -171,6 +174,8 @@ export default class TowerDefenseEngine {
     if (cellX === HOME_CELL.x && cellZ === HOME_CELL.z) return;
 
     const key = `${cellX},${cellZ}`;
+    if (this.turrets.has(key)) return;
+
     if (this.walls.has(key)) {
       this.walls.delete(key);
     } else {
@@ -182,6 +187,102 @@ export default class TowerDefenseEngine {
 
   isWall(cellX, cellZ) {
     return this.walls.has(`${cellX},${cellZ}`);
+  }
+
+  toggleTurret(cellX, cellZ) {
+    if (!this.inBounds(cellX, cellZ)) return;
+    if (cellX === HOME_CELL.x && cellZ === HOME_CELL.z) return;
+
+    const key = `${cellX},${cellZ}`;
+    if (this.walls.has(key)) return;
+
+    if (this.turrets.has(key)) {
+      this.turrets.delete(key);
+    } else {
+      this.turrets.add(key);
+    }
+  }
+
+  setWalls(wallKeys = []) {
+    this.walls = new Set(
+      wallKeys.filter((key) => {
+        const [x, z] = key.split(',').map(Number);
+        if (!this.inBounds(x, z)) return false;
+        if (x === HOME_CELL.x && z === HOME_CELL.z) return false;
+        return true;
+      })
+    );
+
+    this.rebuildFlowField();
+  }
+
+  getNearestEnemy(position, range) {
+    let nearest = null;
+    let bestDistSq = range * range;
+    for (const enemy of this.enemies) {
+      if (!enemy.active) continue;
+      const distSq = enemy.position.distanceToSquared(position);
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        nearest = enemy;
+      }
+    }
+
+    return nearest;
+  }
+
+  updateTurrets(deltaTime, elapsedTime) {
+    if (!this.turrets.size) return;
+
+    if (!this.nextTurretFireTime || elapsedTime >= this.nextTurretFireTime) {
+      const fireRate = 0.45;
+      this.nextTurretFireTime = elapsedTime + fireRate;
+
+      for (const key of this.turrets) {
+        const [x, z] = key.split(',').map(Number);
+        const world = this.cellToWorld(x, z);
+        const turretPos = this.tempVecA.set(world.x, 0.9, world.z);
+        const target = this.getNearestEnemy(turretPos, 7.5);
+        if (!target) continue;
+
+        const direction = this.tempVecB.copy(target.position).sub(turretPos).normalize();
+        this.projectiles.push({
+          position: new THREE.Vector3(turretPos.x, turretPos.y, turretPos.z),
+          velocity: direction.multiplyScalar(12).clone(),
+          ttl: 1.25,
+          damage: 28,
+        });
+      }
+    }
+
+    for (let i = this.projectiles.length - 1; i >= 0; i -= 1) {
+      const projectile = this.projectiles[i];
+      projectile.position.addScaledVector(projectile.velocity, deltaTime);
+      projectile.ttl -= deltaTime;
+
+      let hitEnemy = null;
+      for (const enemy of this.enemies) {
+        if (!enemy.active) continue;
+        const hitRadius = enemy.size * 0.55;
+        if (projectile.position.distanceToSquared(enemy.position) <= hitRadius * hitRadius) {
+          hitEnemy = enemy;
+          break;
+        }
+      }
+
+      if (hitEnemy) {
+        hitEnemy.health -= projectile.damage;
+        if (hitEnemy.health <= 0) {
+          hitEnemy.active = false;
+        }
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      if (projectile.ttl <= 0) {
+        this.projectiles.splice(i, 1);
+      }
+    }
   }
 
   rebuildFlowField() {
@@ -291,5 +392,7 @@ export default class TowerDefenseEngine {
       enemy.position.addScaledVector(enemy.velocity, deltaTime);
       enemy.position.y = 0.55;
     }
+
+    this.updateTurrets(deltaTime, elapsedTime);
   }
 }

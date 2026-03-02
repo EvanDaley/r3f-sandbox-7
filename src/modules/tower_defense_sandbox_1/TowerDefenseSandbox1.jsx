@@ -10,6 +10,7 @@ import useTowerDefenseUiStore from './stores/useTowerDefenseUiStore';
 
 const dummy = new THREE.Object3D();
 const SPAWN_POINT = new THREE.Vector3(0, 1.5, 8);
+const WALL_STORAGE_KEY = 'tower-defense-sandbox-1:walls';
 
 function PlayerCharacter({ controllerRef }) {
   return (
@@ -77,9 +78,9 @@ function EnemyInstances({ engine }) {
   ));
 }
 
-function WallInstances({ engine, wallVersion }) {
+function WallInstances({ engine, structureVersion }) {
   const meshRef = useRef();
-  const wallKeys = useMemo(() => Array.from(engine.walls), [engine, wallVersion]);
+  const wallKeys = useMemo(() => Array.from(engine.walls), [engine, structureVersion]);
 
   useLayoutEffect(() => {
     const mesh = meshRef.current;
@@ -112,6 +113,98 @@ function WallInstances({ engine, wallVersion }) {
   );
 }
 
+function TurretInstances({ engine, structureVersion }) {
+  const baseRef = useRef();
+  const topRef = useRef();
+  const turretKeys = useMemo(() => Array.from(engine.turrets), [engine, structureVersion]);
+
+  useLayoutEffect(() => {
+    const baseMesh = baseRef.current;
+    const topMesh = topRef.current;
+    if (!baseMesh || !topMesh) return;
+
+    turretKeys.forEach((key, i) => {
+      const [x, z] = key.split(',').map(Number);
+      const world = engine.cellToWorld(x, z);
+
+      dummy.position.set(world.x, 0.35, world.z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      baseMesh.setMatrixAt(i, dummy.matrix);
+
+      dummy.position.set(world.x, 0.95, world.z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      topMesh.setMatrixAt(i, dummy.matrix);
+    });
+
+    baseMesh.count = turretKeys.length;
+    topMesh.count = turretKeys.length;
+    baseMesh.instanceMatrix.needsUpdate = true;
+    topMesh.instanceMatrix.needsUpdate = true;
+  }, [engine, turretKeys]);
+
+  return (
+    <>
+      <instancedMesh ref={baseRef} args={[null, null, engine.gridSize * engine.gridSize]} castShadow receiveShadow frustumCulled={false}>
+        <boxGeometry args={[engine.cellSize * 0.72, 0.7, engine.cellSize * 0.72]} />
+        <meshStandardMaterial color='#374151' roughness={0.75} />
+      </instancedMesh>
+      <instancedMesh ref={topRef} args={[null, null, engine.gridSize * engine.gridSize]} castShadow receiveShadow frustumCulled={false}>
+        <coneGeometry args={[0.45, 0.8, 4]} />
+        <meshStandardMaterial color='#93c5fd' roughness={0.35} metalness={0.15} />
+      </instancedMesh>
+    </>
+  );
+}
+
+function ProjectileInstances({ engine }) {
+  const meshRef = useRef();
+
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    const projectiles = engine.projectiles;
+    for (let i = 0; i < projectiles.length; i += 1) {
+      dummy.position.copy(projectiles[i].position);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+
+    for (let i = projectiles.length; i < engine.maxEnemies * 2; i += 1) {
+      dummy.position.set(0, -1000, 0);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+
+    mesh.count = engine.maxEnemies * 2;
+    mesh.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[null, null, engine.maxEnemies * 2]} castShadow frustumCulled={false}>
+      <sphereGeometry args={[0.12, 8, 8]} />
+      <meshStandardMaterial color='#fde047' emissive='#facc15' emissiveIntensity={0.7} />
+    </instancedMesh>
+  );
+}
+
+function BuildMenu({ value, onChange }) {
+  return (
+    <div style={{ position: 'fixed', right: 12, top: 12, zIndex: 57, background: 'rgba(17,24,39,0.9)', padding: 10, borderRadius: 10, color: '#fff', fontSize: 12 }}>
+      <div style={{ marginBottom: 8, fontWeight: 700 }}>Build Menu</div>
+      <button type='button' onClick={() => onChange('wall')} style={{ marginRight: 6, background: value === 'wall' ? '#475569' : '#1f2937', color: '#fff' }}>
+        Wall
+      </button>
+      <button type='button' onClick={() => onChange('turret')} style={{ background: value === 'turret' ? '#1d4ed8' : '#1f2937', color: '#fff' }}>
+        Turret
+      </button>
+    </div>
+  );
+}
+
 export default function TowerDefenseSandbox1() {
   const engine = useMemo(
     () => new TowerDefenseEngine({
@@ -126,8 +219,29 @@ export default function TowerDefenseSandbox1() {
   const setSnapshot = useTowerDefenseUiStore((state) => state.setSnapshot);
   const resetHud = useTowerDefenseUiStore((state) => state.reset);
 
-  const [wallVersion, setWallVersion] = useState(0);
+  const [structureVersion, setStructureVersion] = useState(0);
+  const [buildSelection, setBuildSelection] = useState('wall');
   const controllerRef = useRef();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const rawWalls = window.localStorage.getItem(WALL_STORAGE_KEY);
+      if (!rawWalls) return;
+      const wallKeys = JSON.parse(rawWalls);
+      if (Array.isArray(wallKeys)) {
+        engine.setWalls(wallKeys);
+        setStructureVersion((value) => value + 1);
+      }
+    } catch {
+      // Ignore malformed save data.
+    }
+  }, [engine]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(WALL_STORAGE_KEY, JSON.stringify(Array.from(engine.walls)));
+  }, [engine, structureVersion]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -176,6 +290,8 @@ export default function TowerDefenseSandbox1() {
       maxEnemies: engine.maxEnemies,
       pendingSpawns: engine.pendingSpawns.length,
       wallCount: engine.walls.size,
+      turretCount: engine.turrets.size,
+      buildSelection,
       amplifierCount: engine.activeAmplifierIds.length,
       activeAmplifiers: engine.activeAmplifiers,
       enemyTypes: engine.enemyTypes,
@@ -186,6 +302,7 @@ export default function TowerDefenseSandbox1() {
 
   return (
     <>
+      <BuildMenu value={buildSelection} onChange={setBuildSelection} />
       <color attach='background' args={['#87CEEB']} />
       <fog attach='fog' args={['#87CEEB', 40, 220]} />
       <ambientLight intensity={0.45} />
@@ -205,17 +322,20 @@ export default function TowerDefenseSandbox1() {
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
           onPointerDown={(event) => {
-            // Only handle right mouse button (button 2)
-            if (event.button === 2) {
-              event.stopPropagation();
-              const { x, z } = event.point;
-              const cell = engine.worldToCell(x, z);
+            if (event.button !== 2) return;
+            event.stopPropagation();
+            const { x, z } = event.point;
+            const cell = engine.worldToCell(x, z);
+
+            if (buildSelection === 'turret') {
+              engine.toggleTurret(cell.x, cell.z);
+            } else {
               engine.toggleWall(cell.x, cell.z);
-              setWallVersion((value) => value + 1);
             }
+
+            setStructureVersion((value) => value + 1);
           }}
           onContextMenu={(e) => {
-            // Prevent the default context menu from appearing
             e.preventDefault();
           }}
         >
@@ -230,7 +350,9 @@ export default function TowerDefenseSandbox1() {
           <meshStandardMaterial color='#22c55e' roughness={0.5} />
         </mesh>
 
-        <WallInstances engine={engine} wallVersion={wallVersion} />
+        <WallInstances engine={engine} structureVersion={structureVersion} />
+        <TurretInstances engine={engine} structureVersion={structureVersion} />
+        <ProjectileInstances engine={engine} />
         <EnemyInstances engine={engine} />
       </Physics>
     </>
