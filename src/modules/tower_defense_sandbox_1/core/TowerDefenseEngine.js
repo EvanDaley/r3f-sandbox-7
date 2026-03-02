@@ -243,6 +243,11 @@ export default class TowerDefenseEngine {
     this.rebuildFlowField();
   }
 
+  clearTurrets() {
+    this.turrets.clear();
+    this.rebuildFlowField();
+  }
+
   getNearestEnemy(position, range) {
     let nearest = null;
     let bestDistSq = range * range;

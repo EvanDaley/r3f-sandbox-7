@@ -140,17 +140,23 @@ export default function TowerDefenseHud() {
             </button>
             <button 
               type='button' 
-              onClick={() => {
-                if (window.confirm('Clear all walls and turrets?')) {
-                  window.dispatchEvent(new Event('td:clear-all'));
-                }
-              }}
+              onClick={() => window.dispatchEvent(new Event('td:clear-all'))}
               style={{
                 background: '#dc2626',
                 color: '#fff',
               }}
             >
               Clear All
+            </button>
+            <button 
+              type='button' 
+              onClick={() => window.dispatchEvent(new Event('td:clear-turrets'))}
+              style={{
+                background: '#ea580c',
+                color: '#fff',
+              }}
+            >
+              Clear Turrets
             </button>
           </div>
 

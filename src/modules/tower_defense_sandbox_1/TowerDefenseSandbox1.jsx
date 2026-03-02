@@ -269,16 +269,26 @@ export default function TowerDefenseSandbox1() {
       setStructureVersion((value) => value + 1);
     };
 
+    const onClearTurrets = () => {
+      engine.clearTurrets();
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(TURRET_STORAGE_KEY);
+      }
+      setStructureVersion((value) => value + 1);
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('td:force-wave', onForceWave);
     window.addEventListener('td:add-amplifier', onAddAmplifier);
     window.addEventListener('td:clear-all', onClearAll);
+    window.addEventListener('td:clear-turrets', onClearTurrets);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('td:force-wave', onForceWave);
       window.removeEventListener('td:add-amplifier', onAddAmplifier);
       window.removeEventListener('td:clear-all', onClearAll);
+      window.removeEventListener('td:clear-turrets', onClearTurrets);
       resetHud();
     };
   }, [engine, resetHud]);
