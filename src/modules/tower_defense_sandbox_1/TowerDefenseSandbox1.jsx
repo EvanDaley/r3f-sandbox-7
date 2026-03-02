@@ -9,7 +9,7 @@ import TowerDefenseEngine from './core/TowerDefenseEngine';
 import useTowerDefenseUiStore from './stores/useTowerDefenseUiStore';
 
 const dummy = new THREE.Object3D();
-const SPAWN_POINT = new THREE.Vector3(0, 1.5, 8);
+const SPAWN_POINT = new THREE.Vector3(0, 1.5, -2);
 const WALL_STORAGE_KEY = 'tower-defense-sandbox-1:walls';
 const TURRET_STORAGE_KEY = 'tower-defense-sandbox-1:turrets';
 
@@ -218,12 +218,16 @@ export default function TowerDefenseSandbox1() {
       const wallKeys = rawWalls ? JSON.parse(rawWalls) : [];
       const turretKeys = rawTurrets ? JSON.parse(rawTurrets) : [];
 
+      // Set walls and turrets without rebuilding flow field each time
       if (Array.isArray(wallKeys)) {
-        engine.setWalls(wallKeys);
+        engine.setWalls(wallKeys, false);
       }
       if (Array.isArray(turretKeys)) {
-        engine.setTurrets(turretKeys);
+        engine.setTurrets(turretKeys, false);
       }
+      
+      // Rebuild flow field once after both are set
+      engine.rebuildFlowField();
 
       setStructureVersion((value) => value + 1);
     } catch {
@@ -256,14 +260,25 @@ export default function TowerDefenseSandbox1() {
       engine.forceAddAmplifier();
     };
 
+    const onClearAll = () => {
+      engine.clearAllStructures();
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(WALL_STORAGE_KEY);
+        window.localStorage.removeItem(TURRET_STORAGE_KEY);
+      }
+      setStructureVersion((value) => value + 1);
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('td:force-wave', onForceWave);
     window.addEventListener('td:add-amplifier', onAddAmplifier);
+    window.addEventListener('td:clear-all', onClearAll);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('td:force-wave', onForceWave);
       window.removeEventListener('td:add-amplifier', onAddAmplifier);
+      window.removeEventListener('td:clear-all', onClearAll);
       resetHud();
     };
   }, [engine, resetHud]);

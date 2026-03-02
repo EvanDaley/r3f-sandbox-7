@@ -131,12 +131,26 @@ export default function TowerDefenseHud() {
             <div>Build mode: {buildSelection}</div>
           </div>
 
-          <div style={{ padding: '10px 14px', display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <button type='button' disabled={!canForceWave} onClick={() => window.dispatchEvent(new Event('td:force-wave'))}>
               Force Wave
             </button>
             <button type='button' onClick={() => window.dispatchEvent(new Event('td:add-amplifier'))}>
               Add Skull
+            </button>
+            <button 
+              type='button' 
+              onClick={() => {
+                if (window.confirm('Clear all walls and turrets?')) {
+                  window.dispatchEvent(new Event('td:clear-all'));
+                }
+              }}
+              style={{
+                background: '#dc2626',
+                color: '#fff',
+              }}
+            >
+              Clear All
             </button>
           </div>
 
