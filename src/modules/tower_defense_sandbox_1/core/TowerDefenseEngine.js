@@ -368,15 +368,25 @@ export default class TowerDefenseEngine {
       enemy.speed = type.baseSpeed * multipliers.speedMultiplier;
       enemy.maxHealth = Math.round(type.baseHealth * multipliers.healthMultiplier);
       enemy.health = enemy.maxHealth;
-      return;
+      return true;
     }
+
+    return false;
   }
 
   flushSpawns(currentTime) {
     while (this.pendingSpawns.length && this.pendingSpawns[0].spawnAt <= currentTime) {
-      const spawn = this.pendingSpawns.shift();
       const enemy = this.enemies.find((item) => !item.active);
-      if (enemy) this.activateEnemy(enemy, spawn.typeIndex);
+      if (!enemy) break;
+
+      const spawn = this.pendingSpawns[0];
+      const spawned = this.activateEnemy(enemy, spawn.typeIndex);
+      if (spawned) {
+        this.pendingSpawns.shift();
+      } else {
+        // Keep this spawn queued and retry next frame if no valid spawn cell is found now.
+        break;
+      }
     }
   }
 
