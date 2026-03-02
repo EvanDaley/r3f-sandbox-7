@@ -285,7 +285,6 @@ export default function TowerDefenseSandbox1() {
       pendingSpawns: engine.pendingSpawns.length,
       wallCount: engine.walls.size,
       turretCount: engine.turrets.size,
-      buildSelection,
       amplifierCount: engine.activeAmplifierIds.length,
       activeAmplifiers: engine.activeAmplifiers,
       enemyTypes: engine.enemyTypes,

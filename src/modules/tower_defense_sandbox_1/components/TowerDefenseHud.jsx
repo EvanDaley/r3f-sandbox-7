@@ -59,6 +59,12 @@ export default function TowerDefenseHud() {
 
 
       <div
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onPointerUp={(event) => {
+          event.stopPropagation();
+        }}
         style={{
           position: 'fixed',
           left: '50%',
@@ -75,7 +81,11 @@ export default function TowerDefenseHud() {
       >
         <button
           type='button'
-          onClick={() => setBuildSelection('wall')}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setBuildSelection('wall');
+          }}
           style={{
             minWidth: 92,
             background: buildSelection === 'wall' ? '#475569' : '#1f2937',
@@ -88,7 +98,11 @@ export default function TowerDefenseHud() {
         </button>
         <button
           type='button'
-          onClick={() => setBuildSelection('turret')}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setBuildSelection('turret');
+          }}
           style={{
             minWidth: 92,
             background: buildSelection === 'turret' ? '#1d4ed8' : '#1f2937',
