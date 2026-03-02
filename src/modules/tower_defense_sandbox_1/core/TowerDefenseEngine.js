@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import FlockingSteeringStrategy from './strategies/FlockingSteeringStrategy';
+import FlowFieldPathfindingStrategy from './strategies/FlowFieldPathfindingStrategy';
 
 const HOME_CELL = { x: 0, z: 0 };
 
@@ -82,7 +84,13 @@ export default class TowerDefenseEngine {
 
     this.halfGrid = Math.floor(gridSize / 2);
     this.walls = new Set();
-    this.distanceField = new Int16Array(gridSize * gridSize);
+
+    this.pathfindingStrategy = new FlowFieldPathfindingStrategy({
+      gridSize: this.gridSize,
+      cellSize: this.cellSize,
+    });
+
+    this.steeringStrategy = new FlockingSteeringStrategy();
 
     this.pendingSpawns = [];
     this.lastWaveTime = -waveInterval;
@@ -146,26 +154,17 @@ export default class TowerDefenseEngine {
   }
 
   worldToCell(x, z) {
-    return {
-      x: Math.round(x / this.cellSize),
-      z: Math.round(z / this.cellSize),
-    };
+    return this.pathfindingStrategy.worldToCell(x, z);
   }
 
   cellToWorld(x, z) {
-    return {
-      x: x * this.cellSize,
-      z: z * this.cellSize,
-    };
+    return this.pathfindingStrategy.cellToWorld(x, z);
   }
 
   inBounds(x, z) {
-    return x >= -this.halfGrid && x <= this.halfGrid && z >= -this.halfGrid && z <= this.halfGrid;
+    return this.pathfindingStrategy.inBounds(x, z);
   }
 
-  toIndex(x, z) {
-    return x + this.halfGrid + (z + this.halfGrid) * this.gridSize;
-  }
 
   toggleWall(cellX, cellZ) {
     if (!this.inBounds(cellX, cellZ)) return;
@@ -186,29 +185,7 @@ export default class TowerDefenseEngine {
   }
 
   rebuildFlowField() {
-    this.distanceField.fill(-1);
-
-    const queue = [HOME_CELL];
-    this.distanceField[this.toIndex(HOME_CELL.x, HOME_CELL.z)] = 0;
-
-    for (let head = 0; head < queue.length; head += 1) {
-      const { x, z } = queue[head];
-      const d = this.distanceField[this.toIndex(x, z)];
-      const neighbors = [
-        { x: x + 1, z },
-        { x: x - 1, z },
-        { x, z: z + 1 },
-        { x, z: z - 1 },
-      ];
-
-      for (const n of neighbors) {
-        if (!this.inBounds(n.x, n.z) || this.isWall(n.x, n.z)) continue;
-        const idx = this.toIndex(n.x, n.z);
-        if (this.distanceField[idx] !== -1) continue;
-        this.distanceField[idx] = d + 1;
-        queue.push(n);
-      }
-    }
+    this.pathfindingStrategy.rebuildDistanceField((x, z) => this.isWall(x, z));
   }
 
   pickEnemyType() {
@@ -262,7 +239,7 @@ export default class TowerDefenseEngine {
     for (let attempts = 0; attempts < 40; attempts += 1) {
       const cell = this.randomSpawnCell();
       if (this.isWall(cell.x, cell.z)) continue;
-      if (this.distanceField[this.toIndex(cell.x, cell.z)] === -1) continue;
+      if (!this.pathfindingStrategy.isReachableCell(cell.x, cell.z)) continue;
       const world = this.cellToWorld(cell.x, cell.z);
 
       enemy.position.set(world.x, 0.55, world.z);
@@ -286,35 +263,7 @@ export default class TowerDefenseEngine {
   }
 
   flowDirection(position, outVec) {
-    const cell = this.worldToCell(position.x, position.z);
-    const currentDistance = this.inBounds(cell.x, cell.z) ? this.distanceField[this.toIndex(cell.x, cell.z)] : -1;
-
-    if (currentDistance <= 0) {
-      outVec.set(-position.x, 0, -position.z);
-      return outVec.normalize();
-    }
-
-    let bestDistance = currentDistance;
-    let bestCell = cell;
-    const neighbors = [
-      { x: cell.x + 1, z: cell.z },
-      { x: cell.x - 1, z: cell.z },
-      { x: cell.x, z: cell.z + 1 },
-      { x: cell.x, z: cell.z - 1 },
-    ];
-
-    for (const n of neighbors) {
-      if (!this.inBounds(n.x, n.z) || this.isWall(n.x, n.z)) continue;
-      const dist = this.distanceField[this.toIndex(n.x, n.z)];
-      if (dist !== -1 && dist < bestDistance) {
-        bestDistance = dist;
-        bestCell = n;
-      }
-    }
-
-    const target = this.cellToWorld(bestCell.x, bestCell.z);
-    outVec.set(target.x - position.x, 0, target.z - position.z);
-    return outVec.normalize();
+    return this.pathfindingStrategy.getFlowDirection(position, outVec, (x, z) => this.isWall(x, z));
   }
 
   forceNextWave(now) {
@@ -328,9 +277,6 @@ export default class TowerDefenseEngine {
 
     this.flushSpawns(elapsedTime);
 
-    const neighborRadiusSq = 3.2 * 3.2;
-    const separationRadiusSq = 1.25 * 1.25;
-
     for (const enemy of this.enemies) {
       if (!enemy.active) continue;
 
@@ -340,55 +286,8 @@ export default class TowerDefenseEngine {
         continue;
       }
 
-      const flow = this.flowDirection(enemy.position, this.tempVecB).multiplyScalar(1.6);
-
-      let alignX = 0;
-      let alignZ = 0;
-      let cohX = 0;
-      let cohZ = 0;
-      let sepX = 0;
-      let sepZ = 0;
-      let neighborCount = 0;
-
-      for (const other of this.enemies) {
-        if (other === enemy || !other.active) continue;
-
-        const dx = enemy.position.x - other.position.x;
-        const dz = enemy.position.z - other.position.z;
-        const distSq = dx * dx + dz * dz;
-        if (distSq > neighborRadiusSq) continue;
-
-        neighborCount += 1;
-        alignX += other.velocity.x;
-        alignZ += other.velocity.z;
-        cohX += other.position.x;
-        cohZ += other.position.z;
-
-        if (distSq < separationRadiusSq && distSq > 0.0001) {
-          const inv = 1 / distSq;
-          sepX += dx * inv;
-          sepZ += dz * inv;
-        }
-      }
-
-      const steer = this.tempVecC.copy(flow);
-
-      if (neighborCount > 0) {
-        const invCount = 1 / neighborCount;
-
-        this.tempVecA.set(alignX * invCount, 0, alignZ * invCount).normalize().multiplyScalar(0.5);
-        steer.add(this.tempVecA);
-
-        this.tempVecA.set(cohX * invCount - enemy.position.x, 0, cohZ * invCount - enemy.position.z)
-          .normalize()
-          .multiplyScalar(0.45);
-        steer.add(this.tempVecA);
-
-        this.tempVecA.set(sepX, 0, sepZ).normalize().multiplyScalar(0.9);
-        steer.add(this.tempVecA);
-      }
-
-      enemy.velocity.lerp(steer.normalize().multiplyScalar(enemy.speed), Math.min(1, deltaTime * 3.5));
+      const flow = this.flowDirection(enemy.position, this.tempVecB);
+      this.steeringStrategy.apply(enemy, this.enemies, flow, deltaTime, this.tempVecA, this.tempVecC);
       enemy.position.addScaledVector(enemy.velocity, deltaTime);
       enemy.position.y = 0.55;
     }
