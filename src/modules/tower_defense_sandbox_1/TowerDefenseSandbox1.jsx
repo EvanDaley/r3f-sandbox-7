@@ -1,12 +1,12 @@
 import { Html, OrbitControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import TowerDefenseEngine from './core/TowerDefenseEngine';
 
 const dummy = new THREE.Object3D();
 
-function EnemyInstances({ engine }) {
+function EnemyTypeInstances({ engine, typeIndex }) {
   const meshRef = useRef();
 
   useFrame(() => {
@@ -15,7 +15,7 @@ function EnemyInstances({ engine }) {
 
     let index = 0;
     for (const enemy of engine.enemies) {
-      if (!enemy.active) continue;
+      if (!enemy.active || enemy.typeIndex !== typeIndex) continue;
 
       dummy.position.copy(enemy.position);
       dummy.rotation.y = Math.atan2(enemy.velocity.x, enemy.velocity.z);
@@ -35,17 +35,24 @@ function EnemyInstances({ engine }) {
     mesh.instanceMatrix.needsUpdate = true;
   });
 
+  const enemyType = engine.enemyTypes[typeIndex];
+
   return (
     <instancedMesh ref={meshRef} args={[null, null, engine.maxEnemies]} castShadow>
-      <boxGeometry args={[0.8, 0.8, 0.8]} />
-      <meshStandardMaterial color='#ef4444' roughness={0.55} metalness={0.1} />
+      <boxGeometry args={[enemyType.size, enemyType.size, enemyType.size]} />
+      <meshStandardMaterial color={enemyType.color} roughness={0.55} metalness={0.1} />
     </instancedMesh>
   );
 }
 
+function EnemyInstances({ engine }) {
+  return engine.enemyTypes.map((enemyType, typeIndex) => (
+    <EnemyTypeInstances key={enemyType.id} engine={engine} typeIndex={typeIndex} />
+  ));
+}
+
 function WallInstances({ engine, wallVersion }) {
   const meshRef = useRef();
-
   const wallKeys = useMemo(() => Array.from(engine.walls), [engine, wallVersion]);
 
   useLayoutEffect(() => {
@@ -79,14 +86,22 @@ function WallInstances({ engine, wallVersion }) {
 }
 
 function SceneHud({ engine, wallVersion }) {
-  const [stats, setStats] = useState({ activeEnemies: 0, pendingSpawns: 0 });
+  const [stats, setStats] = useState({ activeEnemies: 0, pendingSpawns: 0, waveNumber: 0, amplifierCount: 0 });
 
   useFrame(() => {
     const activeEnemies = engine.enemies.reduce((count, enemy) => count + Number(enemy.active), 0);
     const pendingSpawns = engine.pendingSpawns.length;
+    const waveNumber = engine.waveNumber;
+    const amplifierCount = engine.activeAmplifierIds.length;
     setStats((prev) => {
-      if (prev.activeEnemies === activeEnemies && prev.pendingSpawns === pendingSpawns) return prev;
-      return { activeEnemies, pendingSpawns };
+      if (
+        prev.activeEnemies === activeEnemies
+        && prev.pendingSpawns === pendingSpawns
+        && prev.waveNumber === waveNumber
+        && prev.amplifierCount === amplifierCount
+      ) return prev;
+
+      return { activeEnemies, pendingSpawns, waveNumber, amplifierCount };
     });
   });
 
@@ -94,7 +109,7 @@ function SceneHud({ engine, wallVersion }) {
     <Html position={[-22, 8, -22]} transform={false}>
       <div
         style={{
-          width: 260,
+          width: 310,
           borderRadius: 10,
           background: 'rgba(15, 23, 42, 0.82)',
           color: '#e2e8f0',
@@ -108,11 +123,30 @@ function SceneHud({ engine, wallVersion }) {
       >
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Tower Defense Sandbox 1</div>
         <div>Click terrain to place/remove a wall.</div>
+        <div>Press <b>N</b> to force a new wave.</div>
+        <div>Press <b>K</b> to add a random skull amplifier.</div>
         <div>Home base target: (0, 0, 0)</div>
-        <div style={{ marginTop: 8 }}>Active enemies: {stats.activeEnemies} / {engine.maxEnemies}</div>
+        <div style={{ marginTop: 8 }}>Wave: {stats.waveNumber}</div>
+        <div>Active enemies: {stats.activeEnemies} / {engine.maxEnemies}</div>
         <div>Queued spawns: {stats.pendingSpawns}</div>
+        <div>Amplifiers: {stats.amplifierCount}</div>
         <div>Walls: {engine.walls.size}</div>
         <div>Wall changes: {wallVersion}</div>
+
+        <div style={{ marginTop: 8, fontWeight: 700 }}>Enemy Types</div>
+        {engine.enemyTypes.map((type) => (
+          <div key={type.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 99, background: type.color, display: 'inline-block' }} />
+            <span>{type.label}</span>
+            <span style={{ marginLeft: 'auto', opacity: 0.9 }}>SPD {type.baseSpeed.toFixed(1)} | HP {type.baseHealth}</span>
+          </div>
+        ))}
+
+        <div style={{ marginTop: 8, fontWeight: 700 }}>Active Skulls</div>
+        {engine.activeAmplifiers.length === 0 && <div style={{ opacity: 0.8 }}>None yet.</div>}
+        {engine.activeAmplifiers.map((amp) => (
+          <div key={amp.id}>☠ {amp.label}: {amp.description}</div>
+        ))}
       </div>
     </Html>
   );
@@ -120,17 +154,34 @@ function SceneHud({ engine, wallVersion }) {
 
 export default function TowerDefenseSandbox1() {
   const engine = useMemo(
-    () =>
-      new TowerDefenseEngine({
-        gridSize: 25,
-        cellSize: 2,
-        maxEnemies: 20,
-        waveSize: 20,
-      }),
+    () => new TowerDefenseEngine({
+      gridSize: 25,
+      cellSize: 2,
+      maxEnemies: 40,
+      waveSize: 20,
+    }),
     []
   );
 
   const [wallVersion, setWallVersion] = useState(0);
+  const [, setRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.code === 'KeyK') {
+        engine.forceAddAmplifier();
+        setRefreshTick((v) => v + 1);
+      }
+
+      if (event.code === 'KeyN') {
+        engine.forceNextWave(performance.now() / 1000);
+        setRefreshTick((v) => v + 1);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [engine]);
 
   useFrame((state, delta) => {
     engine.update(Math.min(delta, 1 / 24), state.clock.getElapsedTime());
