@@ -46,6 +46,7 @@ export default function TowerDefenseHud() {
   const turretCount = useTowerDefenseUiStore((state) => state.turretCount);
   const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
   const activeAmplifiers = useTowerDefenseUiStore((state) => state.activeAmplifiers);
+  const setBuildSelection = useTowerDefenseUiStore((state) => state.setBuildSelection);
   const enemyTypes = useTowerDefenseUiStore((state) => state.enemyTypes);
 
   const canForceWave = useMemo(() => maxEnemies > 0, [maxEnemies]);
@@ -55,6 +56,50 @@ export default function TowerDefenseHud() {
       <button type='button' style={panelStyles.launcher} onClick={() => setIsOpen((v) => !v)}>
         {isOpen ? 'Hide Tower Defense' : 'Open Tower Defense'}
       </button>
+
+
+      <div
+        style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 16,
+          transform: 'translateX(-50%)',
+          zIndex: 58,
+          display: 'flex',
+          gap: 8,
+          padding: 8,
+          borderRadius: 10,
+          background: 'rgba(13, 18, 30, 0.92)',
+          border: '1px solid rgba(255,255,255,0.18)',
+        }}
+      >
+        <button
+          type='button'
+          onClick={() => setBuildSelection('wall')}
+          style={{
+            minWidth: 92,
+            background: buildSelection === 'wall' ? '#475569' : '#1f2937',
+            color: '#fff',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >
+          Build: Wall
+        </button>
+        <button
+          type='button'
+          onClick={() => setBuildSelection('turret')}
+          style={{
+            minWidth: 92,
+            background: buildSelection === 'turret' ? '#1d4ed8' : '#1f2937',
+            color: '#fff',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >
+          Build: Turret
+        </button>
+      </div>
 
       {isOpen && (
         <div style={panelStyles.panel}>

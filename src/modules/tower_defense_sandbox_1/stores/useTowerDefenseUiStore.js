@@ -16,6 +16,7 @@ const initialState = {
 const useTowerDefenseUiStore = create((set) => ({
   ...initialState,
   setSnapshot: (snapshot) => set(snapshot),
+  setBuildSelection: (buildSelection) => set({ buildSelection }),
   reset: () => set(initialState),
 }));
 

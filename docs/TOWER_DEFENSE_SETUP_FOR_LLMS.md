@@ -21,13 +21,13 @@ This document gives a concise map of the tower defense sandbox implementation.
 
 - Build mode is selected from the in-scene **Build Menu** (`wall` or `turret`).
 - Right-clicking the terrain toggles the selected structure at that grid cell.
-- Walls are persisted in browser storage under key:
-  - `tower-defense-sandbox-1:walls`
-- On scene init, walls are restored from localStorage and pathfinding is rebuilt.
+- Walls are persisted in browser storage under key `tower-defense-sandbox-1:walls`.
+- Turrets are persisted in browser storage under key `tower-defense-sandbox-1:turrets`.
+- On scene init, both walls and turrets are restored from localStorage and pathfinding is rebuilt.
 
 ## Turret behavior (current baseline)
 
-- Turrets are stored as grid keys (`"x,z"`) in `engine.turrets`.
+- Turrets are stored as grid keys (`"x,z"`) in `engine.turrets` and block AI pathing the same way walls do.
 - Turrets fire periodically when enemies are within range.
 - A projectile tracks position/velocity/ttl/damage and is removed on hit or timeout.
 - Enemy damage is applied in engine update; enemies deactivate when health <= 0.

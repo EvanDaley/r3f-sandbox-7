@@ -1,4 +1,4 @@
-import { Html, KeyboardControls } from '@react-three/drei';
+import { KeyboardControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -11,6 +11,7 @@ import useTowerDefenseUiStore from './stores/useTowerDefenseUiStore';
 const dummy = new THREE.Object3D();
 const SPAWN_POINT = new THREE.Vector3(0, 1.5, 8);
 const WALL_STORAGE_KEY = 'tower-defense-sandbox-1:walls';
+const TURRET_STORAGE_KEY = 'tower-defense-sandbox-1:turrets';
 
 function PlayerCharacter({ controllerRef }) {
   return (
@@ -191,22 +192,6 @@ function ProjectileInstances({ engine }) {
   );
 }
 
-function BuildMenu({ value, onChange }) {
-  return (
-    <Html fullscreen style={{ pointerEvents: 'none' }}>
-      <div style={{ position: 'fixed', right: 12, top: 12, zIndex: 57, background: 'rgba(17,24,39,0.9)', padding: 10, borderRadius: 10, color: '#fff', fontSize: 12, pointerEvents: 'auto' }}>
-        <div style={{ marginBottom: 8, fontWeight: 700 }}>Build Menu</div>
-        <button type='button' onClick={() => onChange('wall')} style={{ marginRight: 6, background: value === 'wall' ? '#475569' : '#1f2937', color: '#fff' }}>
-          Wall
-        </button>
-        <button type='button' onClick={() => onChange('turret')} style={{ background: value === 'turret' ? '#1d4ed8' : '#1f2937', color: '#fff' }}>
-          Turret
-        </button>
-      </div>
-    </Html>
-  );
-}
-
 export default function TowerDefenseSandbox1() {
   const engine = useMemo(
     () => new TowerDefenseEngine({
@@ -220,21 +205,27 @@ export default function TowerDefenseSandbox1() {
 
   const setSnapshot = useTowerDefenseUiStore((state) => state.setSnapshot);
   const resetHud = useTowerDefenseUiStore((state) => state.reset);
+  const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
 
   const [structureVersion, setStructureVersion] = useState(0);
-  const [buildSelection, setBuildSelection] = useState('wall');
   const controllerRef = useRef();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const rawWalls = window.localStorage.getItem(WALL_STORAGE_KEY);
-      if (!rawWalls) return;
-      const wallKeys = JSON.parse(rawWalls);
+      const rawTurrets = window.localStorage.getItem(TURRET_STORAGE_KEY);
+      const wallKeys = rawWalls ? JSON.parse(rawWalls) : [];
+      const turretKeys = rawTurrets ? JSON.parse(rawTurrets) : [];
+
       if (Array.isArray(wallKeys)) {
         engine.setWalls(wallKeys);
-        setStructureVersion((value) => value + 1);
       }
+      if (Array.isArray(turretKeys)) {
+        engine.setTurrets(turretKeys);
+      }
+
+      setStructureVersion((value) => value + 1);
     } catch {
       // Ignore malformed save data.
     }
@@ -243,6 +234,7 @@ export default function TowerDefenseSandbox1() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(WALL_STORAGE_KEY, JSON.stringify(Array.from(engine.walls)));
+    window.localStorage.setItem(TURRET_STORAGE_KEY, JSON.stringify(Array.from(engine.turrets)));
   }, [engine, structureVersion]);
 
   useEffect(() => {
@@ -304,7 +296,6 @@ export default function TowerDefenseSandbox1() {
 
   return (
     <>
-      <BuildMenu value={buildSelection} onChange={setBuildSelection} />
       <color attach='background' args={['#87CEEB']} />
       <fog attach='fog' args={['#87CEEB', 40, 220]} />
       <ambientLight intensity={0.45} />

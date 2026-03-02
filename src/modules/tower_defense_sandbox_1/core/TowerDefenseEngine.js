@@ -186,7 +186,8 @@ export default class TowerDefenseEngine {
   }
 
   isWall(cellX, cellZ) {
-    return this.walls.has(`${cellX},${cellZ}`);
+    const key = `${cellX},${cellZ}`;
+    return this.walls.has(key) || this.turrets.has(key);
   }
 
   toggleTurret(cellX, cellZ) {
@@ -201,6 +202,8 @@ export default class TowerDefenseEngine {
     } else {
       this.turrets.add(key);
     }
+
+    this.rebuildFlowField();
   }
 
   setWalls(wallKeys = []) {
@@ -209,6 +212,20 @@ export default class TowerDefenseEngine {
         const [x, z] = key.split(',').map(Number);
         if (!this.inBounds(x, z)) return false;
         if (x === HOME_CELL.x && z === HOME_CELL.z) return false;
+        return true;
+      })
+    );
+
+    this.rebuildFlowField();
+  }
+
+  setTurrets(turretKeys = []) {
+    this.turrets = new Set(
+      turretKeys.filter((key) => {
+        const [x, z] = key.split(',').map(Number);
+        if (!this.inBounds(x, z)) return false;
+        if (x === HOME_CELL.x && z === HOME_CELL.z) return false;
+        if (this.walls.has(key)) return false;
         return true;
       })
     );
