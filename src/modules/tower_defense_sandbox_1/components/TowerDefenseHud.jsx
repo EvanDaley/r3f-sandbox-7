@@ -37,18 +37,16 @@ const panelStyles = {
 
 export default function TowerDefenseHud() {
   const [isOpen, setIsOpen] = useState(true);
-  const snapshot = useTowerDefenseUiStore((state) => ({
-    waveNumber: state.waveNumber,
-    activeEnemies: state.activeEnemies,
-    maxEnemies: state.maxEnemies,
-    pendingSpawns: state.pendingSpawns,
-    wallCount: state.wallCount,
-    amplifierCount: state.amplifierCount,
-    activeAmplifiers: state.activeAmplifiers,
-    enemyTypes: state.enemyTypes,
-  }));
+  const waveNumber = useTowerDefenseUiStore((state) => state.waveNumber);
+  const activeEnemies = useTowerDefenseUiStore((state) => state.activeEnemies);
+  const maxEnemies = useTowerDefenseUiStore((state) => state.maxEnemies);
+  const pendingSpawns = useTowerDefenseUiStore((state) => state.pendingSpawns);
+  const wallCount = useTowerDefenseUiStore((state) => state.wallCount);
+  const amplifierCount = useTowerDefenseUiStore((state) => state.amplifierCount);
+  const activeAmplifiers = useTowerDefenseUiStore((state) => state.activeAmplifiers);
+  const enemyTypes = useTowerDefenseUiStore((state) => state.enemyTypes);
 
-  const canForceWave = useMemo(() => snapshot.maxEnemies > 0, [snapshot.maxEnemies]);
+  const canForceWave = useMemo(() => maxEnemies > 0, [maxEnemies]);
 
   return (
     <>
@@ -63,11 +61,11 @@ export default function TowerDefenseHud() {
           </div>
 
           <div style={{ padding: '10px 14px', fontSize: 12, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <div>Wave: {snapshot.waveNumber}</div>
-            <div>Active enemies: {snapshot.activeEnemies} / {snapshot.maxEnemies}</div>
-            <div>Queued spawns: {snapshot.pendingSpawns}</div>
-            <div>Amplifiers: {snapshot.amplifierCount}</div>
-            <div>Walls: {snapshot.wallCount}</div>
+            <div>Wave: {waveNumber}</div>
+            <div>Active enemies: {activeEnemies} / {maxEnemies}</div>
+            <div>Queued spawns: {pendingSpawns}</div>
+            <div>Amplifiers: {amplifierCount}</div>
+            <div>Walls: {wallCount}</div>
           </div>
 
           <div style={{ padding: '10px 14px', display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -81,7 +79,7 @@ export default function TowerDefenseHud() {
 
           <div style={{ padding: '10px 14px', fontSize: 12, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Enemy Types</div>
-            {snapshot.enemyTypes.map((type) => (
+            {enemyTypes.map((type) => (
               <div key={type.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 99, background: type.color, display: 'inline-block' }} />
                 <span>{type.label}</span>
@@ -95,7 +93,7 @@ export default function TowerDefenseHud() {
             <div>Middle mouse: orbit camera</div>
             <div>Click ground: place/remove wall</div>
             <div>N: Force wave · K: Add skull</div>
-            {snapshot.activeAmplifiers.map((amp) => (
+            {activeAmplifiers.map((amp) => (
               <div key={amp.id}>☠ {amp.label}</div>
             ))}
           </div>
