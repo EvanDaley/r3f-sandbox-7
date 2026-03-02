@@ -16,11 +16,11 @@ function PlayerCharacter({ controllerRef }) {
     <Ecctrl
       springK={2}
       dampingC={0.2}
-      camInitDis={-6}
-      camMaxDis={-10}
+      camInitDis={-35}
+      camMaxDis={-80}
       camCollisionOffset={0.3}
-      camInitDir={{ x: 0.26, y: 0 }}
-      camTargetPos={{ x: 0, y: 0.5, z: 0 }}
+      camInitDir={{ x: 0.7, y: 0 }}
+      camTargetPos={{ x: 0, y: 1.5, z: 0 }}
       position={SPAWN_POINT.toArray()}
       ref={controllerRef}
     >
@@ -204,12 +204,19 @@ export default function TowerDefenseSandbox1() {
         <mesh
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
-          onClick={(event) => {
-            event.stopPropagation();
-            const { x, z } = event.point;
-            const cell = engine.worldToCell(x, z);
-            engine.toggleWall(cell.x, cell.z);
-            setWallVersion((value) => value + 1);
+          onPointerDown={(event) => {
+            // Only handle right mouse button (button 2)
+            if (event.button === 2) {
+              event.stopPropagation();
+              const { x, z } = event.point;
+              const cell = engine.worldToCell(x, z);
+              engine.toggleWall(cell.x, cell.z);
+              setWallVersion((value) => value + 1);
+            }
+          }}
+          onContextMenu={(e) => {
+            // Prevent the default context menu from appearing
+            e.preventDefault();
           }}
         >
           <planeGeometry args={[gridWorldSize, gridWorldSize]} />
