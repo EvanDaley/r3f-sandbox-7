@@ -1,4 +1,4 @@
-import { KeyboardControls } from '@react-three/drei';
+import { Html, KeyboardControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -193,15 +193,17 @@ function ProjectileInstances({ engine }) {
 
 function BuildMenu({ value, onChange }) {
   return (
-    <div style={{ position: 'fixed', right: 12, top: 12, zIndex: 57, background: 'rgba(17,24,39,0.9)', padding: 10, borderRadius: 10, color: '#fff', fontSize: 12 }}>
-      <div style={{ marginBottom: 8, fontWeight: 700 }}>Build Menu</div>
-      <button type='button' onClick={() => onChange('wall')} style={{ marginRight: 6, background: value === 'wall' ? '#475569' : '#1f2937', color: '#fff' }}>
-        Wall
-      </button>
-      <button type='button' onClick={() => onChange('turret')} style={{ background: value === 'turret' ? '#1d4ed8' : '#1f2937', color: '#fff' }}>
-        Turret
-      </button>
-    </div>
+    <Html fullscreen style={{ pointerEvents: 'none' }}>
+      <div style={{ position: 'fixed', right: 12, top: 12, zIndex: 57, background: 'rgba(17,24,39,0.9)', padding: 10, borderRadius: 10, color: '#fff', fontSize: 12, pointerEvents: 'auto' }}>
+        <div style={{ marginBottom: 8, fontWeight: 700 }}>Build Menu</div>
+        <button type='button' onClick={() => onChange('wall')} style={{ marginRight: 6, background: value === 'wall' ? '#475569' : '#1f2937', color: '#fff' }}>
+          Wall
+        </button>
+        <button type='button' onClick={() => onChange('turret')} style={{ background: value === 'turret' ? '#1d4ed8' : '#1f2937', color: '#fff' }}>
+          Turret
+        </button>
+      </div>
+    </Html>
   );
 }
 
