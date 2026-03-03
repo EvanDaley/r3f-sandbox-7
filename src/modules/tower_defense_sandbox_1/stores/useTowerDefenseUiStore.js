@@ -7,6 +7,8 @@ const initialState = {
   pendingSpawns: 0,
   wallCount: 0,
   amplifierCount: 0,
+  turretCount: 0,
+  buildSelection: 'wall',
   activeAmplifiers: [],
   enemyTypes: [],
 };
@@ -14,6 +16,7 @@ const initialState = {
 const useTowerDefenseUiStore = create((set) => ({
   ...initialState,
   setSnapshot: (snapshot) => set(snapshot),
+  setBuildSelection: (buildSelection) => set({ buildSelection }),
   reset: () => set(initialState),
 }));
 

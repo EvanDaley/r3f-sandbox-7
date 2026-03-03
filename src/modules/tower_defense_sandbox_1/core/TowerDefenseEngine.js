@@ -84,6 +84,8 @@ export default class TowerDefenseEngine {
 
     this.halfGrid = Math.floor(gridSize / 2);
     this.walls = new Set();
+    this.turrets = new Set();
+    this.projectiles = [];
 
     this.pathfindingStrategy = new FlowFieldPathfindingStrategy({
       gridSize: this.gridSize,
@@ -94,6 +96,7 @@ export default class TowerDefenseEngine {
 
     this.pendingSpawns = [];
     this.lastWaveTime = -waveInterval;
+    this.nextTurretFireTime = 0;
 
     this.enemies = Array.from({ length: maxEnemies }, (_, id) => ({
       id,
@@ -171,6 +174,8 @@ export default class TowerDefenseEngine {
     if (cellX === HOME_CELL.x && cellZ === HOME_CELL.z) return;
 
     const key = `${cellX},${cellZ}`;
+    if (this.turrets.has(key)) return;
+
     if (this.walls.has(key)) {
       this.walls.delete(key);
     } else {
@@ -181,7 +186,135 @@ export default class TowerDefenseEngine {
   }
 
   isWall(cellX, cellZ) {
-    return this.walls.has(`${cellX},${cellZ}`);
+    const key = `${cellX},${cellZ}`;
+    return this.walls.has(key) || this.turrets.has(key);
+  }
+
+  toggleTurret(cellX, cellZ) {
+    if (!this.inBounds(cellX, cellZ)) return;
+    if (cellX === HOME_CELL.x && cellZ === HOME_CELL.z) return;
+
+    const key = `${cellX},${cellZ}`;
+    if (this.walls.has(key)) return;
+
+    if (this.turrets.has(key)) {
+      this.turrets.delete(key);
+    } else {
+      this.turrets.add(key);
+    }
+
+    this.rebuildFlowField();
+  }
+
+  setWalls(wallKeys = [], rebuildFlowField = true) {
+    this.walls = new Set(
+      wallKeys.filter((key) => {
+        const [x, z] = key.split(',').map(Number);
+        if (!this.inBounds(x, z)) return false;
+        if (x === HOME_CELL.x && z === HOME_CELL.z) return false;
+        return true;
+      })
+    );
+
+    if (rebuildFlowField) {
+      this.rebuildFlowField();
+    }
+  }
+
+  setTurrets(turretKeys = [], rebuildFlowField = true) {
+    this.turrets = new Set(
+      turretKeys.filter((key) => {
+        const [x, z] = key.split(',').map(Number);
+        if (!this.inBounds(x, z)) return false;
+        if (x === HOME_CELL.x && z === HOME_CELL.z) return false;
+        if (this.walls.has(key)) return false;
+        return true;
+      })
+    );
+
+    if (rebuildFlowField) {
+      this.rebuildFlowField();
+    }
+  }
+
+  clearAllStructures() {
+    this.walls.clear();
+    this.turrets.clear();
+    this.rebuildFlowField();
+  }
+
+  clearTurrets() {
+    this.turrets.clear();
+    this.rebuildFlowField();
+  }
+
+  getNearestEnemy(position, range) {
+    let nearest = null;
+    let bestDistSq = range * range;
+    for (const enemy of this.enemies) {
+      if (!enemy.active) continue;
+      const distSq = enemy.position.distanceToSquared(position);
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        nearest = enemy;
+      }
+    }
+
+    return nearest;
+  }
+
+  updateTurrets(deltaTime, elapsedTime) {
+    if (!this.turrets.size) return;
+
+    if (!this.nextTurretFireTime || elapsedTime >= this.nextTurretFireTime) {
+      const fireRate = 0.45;
+      this.nextTurretFireTime = elapsedTime + fireRate;
+
+      for (const key of this.turrets) {
+        const [x, z] = key.split(',').map(Number);
+        const world = this.cellToWorld(x, z);
+        const turretPos = this.tempVecA.set(world.x, 0.9, world.z);
+        const target = this.getNearestEnemy(turretPos, 7.5);
+        if (!target) continue;
+
+        const direction = this.tempVecB.copy(target.position).sub(turretPos).normalize();
+        this.projectiles.push({
+          position: new THREE.Vector3(turretPos.x, turretPos.y, turretPos.z),
+          velocity: direction.multiplyScalar(12).clone(),
+          ttl: 1.25,
+          damage: 28,
+        });
+      }
+    }
+
+    for (let i = this.projectiles.length - 1; i >= 0; i -= 1) {
+      const projectile = this.projectiles[i];
+      projectile.position.addScaledVector(projectile.velocity, deltaTime);
+      projectile.ttl -= deltaTime;
+
+      let hitEnemy = null;
+      for (const enemy of this.enemies) {
+        if (!enemy.active) continue;
+        const hitRadius = enemy.size * 0.55;
+        if (projectile.position.distanceToSquared(enemy.position) <= hitRadius * hitRadius) {
+          hitEnemy = enemy;
+          break;
+        }
+      }
+
+      if (hitEnemy) {
+        hitEnemy.health -= projectile.damage;
+        if (hitEnemy.health <= 0) {
+          hitEnemy.active = false;
+        }
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      if (projectile.ttl <= 0) {
+        this.projectiles.splice(i, 1);
+      }
+    }
   }
 
   rebuildFlowField() {
@@ -236,10 +369,14 @@ export default class TowerDefenseEngine {
     const type = this.enemyTypes[typeIndex] ?? this.enemyTypes[0];
     const multipliers = this.getAmplifierMultipliers();
 
-    for (let attempts = 0; attempts < 40; attempts += 1) {
+    for (let attempts = 0; attempts < 100; attempts += 1) {
       const cell = this.randomSpawnCell();
       if (this.isWall(cell.x, cell.z)) continue;
-      if (!this.pathfindingStrategy.isReachableCell(cell.x, cell.z)) continue;
+      
+      // Edge cells should always be valid for spawning, skip reachability check for them
+      const isEdgeCell = Math.abs(cell.x) === this.halfGrid || Math.abs(cell.z) === this.halfGrid;
+      if (!isEdgeCell && !this.pathfindingStrategy.isReachableCell(cell.x, cell.z)) continue;
+      
       const world = this.cellToWorld(cell.x, cell.z);
 
       enemy.position.set(world.x, 0.55, world.z);
@@ -250,15 +387,27 @@ export default class TowerDefenseEngine {
       enemy.speed = type.baseSpeed * multipliers.speedMultiplier;
       enemy.maxHealth = Math.round(type.baseHealth * multipliers.healthMultiplier);
       enemy.health = enemy.maxHealth;
-      return;
+      return true;
     }
+
+    return false;
   }
 
   flushSpawns(currentTime) {
     while (this.pendingSpawns.length && this.pendingSpawns[0].spawnAt <= currentTime) {
-      const spawn = this.pendingSpawns.shift();
       const enemy = this.enemies.find((item) => !item.active);
-      if (enemy) this.activateEnemy(enemy, spawn.typeIndex);
+      if (!enemy) break;
+
+      const spawn = this.pendingSpawns.shift();
+      const spawned = this.activateEnemy(enemy, spawn.typeIndex);
+      if (!spawned) {
+        // If we can't spawn this enemy, re-queue it with a small delay to retry
+        // This prevents one failed spawn from blocking all others while still retrying
+        spawn.spawnAt = currentTime + 0.1;
+        this.pendingSpawns.push(spawn);
+        // Continue to next spawn to avoid infinite loop if all spawns fail
+        continue;
+      }
     }
   }
 
@@ -282,6 +431,8 @@ export default class TowerDefenseEngine {
 
       const toHome = this.tempVecA.set(-enemy.position.x, 0, -enemy.position.z);
       if (toHome.lengthSq() < 0.7 * 0.7) {
+        const enemyType = this.enemyTypes[enemy.typeIndex];
+        console.log(`Enemy reached home base and despawned: ${enemyType.label} (${enemyType.id})`);
         enemy.active = false;
         continue;
       }
@@ -291,5 +442,7 @@ export default class TowerDefenseEngine {
       enemy.position.addScaledVector(enemy.velocity, deltaTime);
       enemy.position.y = 0.55;
     }
+
+    this.updateTurrets(deltaTime, elapsedTime);
   }
 }

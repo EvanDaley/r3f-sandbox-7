@@ -43,7 +43,10 @@ export default function TowerDefenseHud() {
   const pendingSpawns = useTowerDefenseUiStore((state) => state.pendingSpawns);
   const wallCount = useTowerDefenseUiStore((state) => state.wallCount);
   const amplifierCount = useTowerDefenseUiStore((state) => state.amplifierCount);
+  const turretCount = useTowerDefenseUiStore((state) => state.turretCount);
+  const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
   const activeAmplifiers = useTowerDefenseUiStore((state) => state.activeAmplifiers);
+  const setBuildSelection = useTowerDefenseUiStore((state) => state.setBuildSelection);
   const enemyTypes = useTowerDefenseUiStore((state) => state.enemyTypes);
 
   const canForceWave = useMemo(() => maxEnemies > 0, [maxEnemies]);
@@ -53,6 +56,64 @@ export default function TowerDefenseHud() {
       <button type='button' style={panelStyles.launcher} onClick={() => setIsOpen((v) => !v)}>
         {isOpen ? 'Hide Tower Defense' : 'Open Tower Defense'}
       </button>
+
+
+      <div
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onPointerUp={(event) => {
+          event.stopPropagation();
+        }}
+        style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 16,
+          transform: 'translateX(-50%)',
+          zIndex: 58,
+          display: 'flex',
+          gap: 8,
+          padding: 8,
+          borderRadius: 10,
+          background: 'rgba(13, 18, 30, 0.92)',
+          border: '1px solid rgba(255,255,255,0.18)',
+        }}
+      >
+        <button
+          type='button'
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setBuildSelection('wall');
+          }}
+          style={{
+            minWidth: 92,
+            background: buildSelection === 'wall' ? '#475569' : '#1f2937',
+            color: '#fff',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >
+          Build: Wall
+        </button>
+        <button
+          type='button'
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setBuildSelection('turret');
+          }}
+          style={{
+            minWidth: 92,
+            background: buildSelection === 'turret' ? '#1d4ed8' : '#1f2937',
+            color: '#fff',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >
+          Build: Turret
+        </button>
+      </div>
 
       {isOpen && (
         <div style={panelStyles.panel}>
@@ -66,14 +127,36 @@ export default function TowerDefenseHud() {
             <div>Queued spawns: {pendingSpawns}</div>
             <div>Amplifiers: {amplifierCount}</div>
             <div>Walls: {wallCount}</div>
+            <div>Turrets: {turretCount}</div>
+            <div>Build mode: {buildSelection}</div>
           </div>
 
-          <div style={{ padding: '10px 14px', display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <button type='button' disabled={!canForceWave} onClick={() => window.dispatchEvent(new Event('td:force-wave'))}>
               Force Wave
             </button>
             <button type='button' onClick={() => window.dispatchEvent(new Event('td:add-amplifier'))}>
               Add Skull
+            </button>
+            <button 
+              type='button' 
+              onClick={() => window.dispatchEvent(new Event('td:clear-all'))}
+              style={{
+                background: '#dc2626',
+                color: '#fff',
+              }}
+            >
+              Clear All
+            </button>
+            <button 
+              type='button' 
+              onClick={() => window.dispatchEvent(new Event('td:clear-turrets'))}
+              style={{
+                background: '#ea580c',
+                color: '#fff',
+              }}
+            >
+              Clear Turrets
             </button>
           </div>
 
@@ -91,7 +174,7 @@ export default function TowerDefenseHud() {
           <div style={{ padding: '10px 14px', fontSize: 11, opacity: 0.85 }}>
             <div>WASD: Move character</div>
             <div>Middle mouse: orbit camera</div>
-            <div>Click ground: place/remove wall</div>
+            <div>Right click ground: place/remove selected build</div>
             <div>N: Force wave · K: Add skull</div>
             {activeAmplifiers.map((amp) => (
               <div key={amp.id}>☠ {amp.label}</div>
