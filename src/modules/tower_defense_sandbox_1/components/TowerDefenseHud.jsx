@@ -44,6 +44,7 @@ export default function TowerDefenseHud() {
   const wallCount = useTowerDefenseUiStore((state) => state.wallCount);
   const amplifierCount = useTowerDefenseUiStore((state) => state.amplifierCount);
   const turretCount = useTowerDefenseUiStore((state) => state.turretCount);
+  const biomass = useTowerDefenseUiStore((state) => state.biomass);
   const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
   const activeAmplifiers = useTowerDefenseUiStore((state) => state.activeAmplifiers);
   const setBuildSelection = useTowerDefenseUiStore((state) => state.setBuildSelection);
@@ -128,6 +129,7 @@ export default function TowerDefenseHud() {
             <div>Amplifiers: {amplifierCount}</div>
             <div>Walls: {wallCount}</div>
             <div>Turrets: {turretCount}</div>
+            <div>Biomass: {biomass}</div>
             <div>Build mode: {buildSelection}</div>
           </div>
 
@@ -166,7 +168,7 @@ export default function TowerDefenseHud() {
               <div key={type.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 99, background: type.color, display: 'inline-block' }} />
                 <span>{type.label}</span>
-                <span style={{ marginLeft: 'auto', opacity: 0.9 }}>SPD {type.baseSpeed} | HP {type.baseHealth}</span>
+                <span style={{ marginLeft: 'auto', opacity: 0.9 }}>SPD {type.baseSpeed} | HP {type.baseHealth} | BIO {type.biomassReward ?? 1}</span>
               </div>
             ))}
           </div>

@@ -12,6 +12,7 @@ const ENEMY_TYPES = [
     size: 0.75,
     baseSpeed: 3.8,
     baseHealth: 55,
+    biomassReward: 1,
     weight: 5,
   },
   {
@@ -21,6 +22,7 @@ const ENEMY_TYPES = [
     size: 1.15,
     baseSpeed: 2.2,
     baseHealth: 140,
+    biomassReward: 3,
     weight: 2,
   },
   {
@@ -30,6 +32,7 @@ const ENEMY_TYPES = [
     size: 0.9,
     baseSpeed: 3.1,
     baseHealth: 85,
+    biomassReward: 2,
     weight: 3,
   },
 ];
@@ -81,6 +84,7 @@ export default class TowerDefenseEngine {
     this.amplifierPool = AMPLIFIERS;
     this.activeAmplifierIds = [];
     this.waveNumber = 0;
+    this.biomass = 0;
 
     this.halfGrid = Math.floor(gridSize / 2);
     this.walls = new Set();
@@ -305,6 +309,8 @@ export default class TowerDefenseEngine {
       if (hitEnemy) {
         hitEnemy.health -= projectile.damage;
         if (hitEnemy.health <= 0) {
+          const enemyType = this.enemyTypes[hitEnemy.typeIndex] ?? this.enemyTypes[0];
+          this.biomass += enemyType?.biomassReward ?? 1;
           hitEnemy.active = false;
         }
         this.projectiles.splice(i, 1);
