@@ -420,10 +420,6 @@ export default class TowerDefenseEngine {
   }
 
   update(deltaTime, elapsedTime) {
-    if (elapsedTime - this.lastWaveTime >= this.waveInterval) {
-      this.enqueueWave(elapsedTime);
-    }
-
     this.flushSpawns(elapsedTime);
 
     for (const enemy of this.enemies) {
