@@ -13,6 +13,19 @@ const SPAWN_POINT = new THREE.Vector3(0, 1.5, -2);
 const WALL_STORAGE_KEY = 'tower-defense-sandbox-1:walls';
 const TURRET_STORAGE_KEY = 'tower-defense-sandbox-1:turrets';
 
+function downloadJson(filename, payload) {
+  const jsonText = JSON.stringify(payload, null, 2);
+  const blob = new Blob([jsonText], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function PlayerCharacter({ controllerRef }) {
   return (
     <Ecctrl
@@ -277,11 +290,24 @@ export default function TowerDefenseSandbox1() {
       setStructureVersion((value) => value + 1);
     };
 
+    const onExportLayout = () => {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        gridSize: engine.gridSize,
+        cellSize: engine.cellSize,
+        walls: Array.from(engine.walls),
+        turrets: Array.from(engine.turrets),
+      };
+
+      downloadJson('tower-defense-layout.json', payload);
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('td:force-wave', onForceWave);
     window.addEventListener('td:add-amplifier', onAddAmplifier);
     window.addEventListener('td:clear-all', onClearAll);
     window.addEventListener('td:clear-turrets', onClearTurrets);
+    window.addEventListener('td:export-layout', onExportLayout);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
@@ -289,6 +315,7 @@ export default function TowerDefenseSandbox1() {
       window.removeEventListener('td:add-amplifier', onAddAmplifier);
       window.removeEventListener('td:clear-all', onClearAll);
       window.removeEventListener('td:clear-turrets', onClearTurrets);
+      window.removeEventListener('td:export-layout', onExportLayout);
       resetHud();
     };
   }, [engine, resetHud]);
