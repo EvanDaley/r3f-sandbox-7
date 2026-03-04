@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import useTowerDefenseUiStore from '../stores/useTowerDefenseUiStore';
 
 const panelStyles = {
@@ -49,8 +49,6 @@ export default function TowerDefenseHud() {
   const activeAmplifiers = useTowerDefenseUiStore((state) => state.activeAmplifiers);
   const setBuildSelection = useTowerDefenseUiStore((state) => state.setBuildSelection);
   const enemyTypes = useTowerDefenseUiStore((state) => state.enemyTypes);
-
-  const canForceWave = useMemo(() => maxEnemies > 0, [maxEnemies]);
 
   return (
     <>
@@ -134,8 +132,8 @@ export default function TowerDefenseHud() {
           </div>
 
           <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <button type='button' disabled={!canForceWave} onClick={() => window.dispatchEvent(new Event('td:force-wave'))}>
-              Force Wave
+            <button type='button' onClick={() => window.dispatchEvent(new Event('td:force-wave'))}>
+              Upgrade Beacon
             </button>
             <button type='button' onClick={() => window.dispatchEvent(new Event('td:add-amplifier'))}>
               Add Skull
@@ -177,7 +175,7 @@ export default function TowerDefenseHud() {
             <div>WASD: Move character</div>
             <div>Middle mouse: orbit camera</div>
             <div>Right click ground: place/remove selected build</div>
-            <div>N: Force wave · K: Add skull</div>
+            <div>N: Upgrade beacon · K: Add skull</div>
             {activeAmplifiers.map((amp) => (
               <div key={amp.id}>☠ {amp.label}</div>
             ))}
