@@ -1,118 +1,181 @@
-import { KeyboardControls } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import CharacterModel from '../third_person_blender_integrated/CharacterModel';
-import { RPG_KEYBOARD_MAP, RPG_TRAINING_STATIONS } from '../rpg/config/progressionConfig';
-import Ecctrl from '../third_person_controller/Ecctrl';
-import TrainingStation from '../rpg/components/TrainingStation';
-import useNearbyInteractables from '../rpg/hooks/useNearbyInteractables';
-import ProgressionSystem from '../rpg/systems/ProgressionSystem';
-import useRpgProgressionStore from '../rpg/stores/useRpgProgressionStore';
 import { ParticleEffectsProvider } from '@/support_modules/particle_effects';
 import Robot from './robots/Robot';
 
-const SPAWN_POINT = new THREE.Vector3(0, 1.5, 0);
+const RTS_CAMERA_DEFAULTS = {
+  target: new THREE.Vector3(0, 0, 0),
+  yaw: Math.PI / 4,
+  pitch: THREE.MathUtils.degToRad(52),
+  distance: 38,
+  moveSpeed: 26,
+  rotateSpeed: 1.9,
+  zoomSpeed: 1.2,
+  minDistance: 18,
+  maxDistance: 70,
+  edgeThresholdPx: 24,
+  edgePanSpeed: 1,
+  minPitch: THREE.MathUtils.degToRad(35),
+  maxPitch: THREE.MathUtils.degToRad(68),
+};
 
-function PlayerCharacter({ controllerRef }) {
-  return (
-    <Ecctrl
-      springK={2}
-      dampingC={0.2}
-      camInitDis={-6}
-      camMaxDis={-10}
-      camCollisionOffset={0.3}
-      camInitDir={{ x: 0.26, y: 0 }}
-      camTargetPos={{ x: 0, y: 0.5, z: 0 }}
-      position={SPAWN_POINT.toArray()}
-      ref={controllerRef}
-    >
-      <mesh castShadow>
-        <boxGeometry args={[0.8, 0.8, 0.8]} />
-        <meshStandardMaterial color='#60a5fa' roughness={0.5} metalness={0.1} />
-      </mesh>
-    </Ecctrl>
-  );
-}
+function StarcraftCameraController() {
+  const { camera, gl, size } = useThree();
+  const stateRef = useRef({
+    pressedKeys: new Set(),
+    mousePosition: { x: size.width / 2, y: size.height / 2 },
+    rightMouseDown: false,
+  });
 
-export default function ModelingSandbox1() {
-  const controllerRef = useRef();
-  const inputRef = useRef({ interact: false });
-  const resetProgression = useRpgProgressionStore((state) => state.resetProgression);
-
-  const trainingStations = useMemo(
-    () => RPG_TRAINING_STATIONS.map((station) => ({ ...station, vector: new THREE.Vector3(...station.position) })),
+  const spherical = useMemo(
+    () => new THREE.Spherical(RTS_CAMERA_DEFAULTS.distance, RTS_CAMERA_DEFAULTS.pitch, RTS_CAMERA_DEFAULTS.yaw),
     []
   );
 
-  const nearbyInteractableIds = useNearbyInteractables({
-    controllerRef,
-    interactables: trainingStations,
-  });
+  const target = useMemo(() => RTS_CAMERA_DEFAULTS.target.clone(), []);
+  const cameraOffset = useMemo(() => new THREE.Vector3(), []);
+  const forward = useMemo(() => new THREE.Vector3(), []);
+  const right = useMemo(() => new THREE.Vector3(), []);
 
   useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.code === 'KeyE') {
-        inputRef.current.interact = true;
-      }
+    camera.fov = 45;
+    camera.near = 0.1;
+    camera.far = 1200;
+    camera.updateProjectionMatrix();
+  }, [camera]);
 
-      if (event.code === 'KeyR') {
-        resetProgression();
-      }
+  useEffect(() => {
+    const dom = gl.domElement;
+
+    const onContextMenu = (event) => event.preventDefault();
+
+    const onKeyDown = (event) => {
+      stateRef.current.pressedKeys.add(event.code);
     };
 
     const onKeyUp = (event) => {
-      if (event.code === 'KeyE') {
-        inputRef.current.interact = false;
+      stateRef.current.pressedKeys.delete(event.code);
+    };
+
+    const onMouseDown = (event) => {
+      if (event.button === 2) {
+        stateRef.current.rightMouseDown = true;
       }
     };
 
+    const onMouseUp = (event) => {
+      if (event.button === 2) {
+        stateRef.current.rightMouseDown = false;
+      }
+    };
+
+    const onMouseMove = (event) => {
+      const rect = dom.getBoundingClientRect();
+      stateRef.current.mousePosition = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+
+      if (!stateRef.current.rightMouseDown) return;
+
+      spherical.theta -= event.movementX * 0.004;
+      spherical.phi = THREE.MathUtils.clamp(
+        spherical.phi + event.movementY * 0.003,
+        RTS_CAMERA_DEFAULTS.minPitch,
+        RTS_CAMERA_DEFAULTS.maxPitch
+      );
+    };
+
+    const onWheel = (event) => {
+      event.preventDefault();
+      const zoomDelta = event.deltaY * 0.01 * RTS_CAMERA_DEFAULTS.zoomSpeed;
+      spherical.radius = THREE.MathUtils.clamp(
+        spherical.radius + zoomDelta,
+        RTS_CAMERA_DEFAULTS.minDistance,
+        RTS_CAMERA_DEFAULTS.maxDistance
+      );
+    };
+
+    dom.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    dom.addEventListener('mousemove', onMouseMove);
+    dom.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
+      dom.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      dom.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+      dom.removeEventListener('mousemove', onMouseMove);
+      dom.removeEventListener('wheel', onWheel);
     };
-  }, [resetProgression]);
+  }, [gl, spherical]);
 
-  useFrame(() => {
-    const rigidBody = controllerRef.current?.group;
-    if (!rigidBody) {
-      return;
+  useFrame((_, delta) => {
+    const { pressedKeys, mousePosition } = stateRef.current;
+    const moveVector = new THREE.Vector3();
+
+    forward.set(Math.sin(spherical.theta), 0, Math.cos(spherical.theta)).normalize();
+    right.set(forward.z, 0, -forward.x).normalize();
+
+    if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) moveVector.add(forward);
+    if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) moveVector.sub(forward);
+    if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) moveVector.add(right);
+    if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) moveVector.sub(right);
+
+    if (pressedKeys.has('KeyQ')) spherical.theta += RTS_CAMERA_DEFAULTS.rotateSpeed * delta;
+    if (pressedKeys.has('KeyE')) spherical.theta -= RTS_CAMERA_DEFAULTS.rotateSpeed * delta;
+
+    const nearLeftEdge = mousePosition.x <= RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+    const nearRightEdge = mousePosition.x >= size.width - RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+    const nearTopEdge = mousePosition.y <= RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+    const nearBottomEdge = mousePosition.y >= size.height - RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+
+    if (nearTopEdge) moveVector.add(forward.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+    if (nearBottomEdge) moveVector.sub(forward.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+    if (nearRightEdge) moveVector.add(right.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+    if (nearLeftEdge) moveVector.sub(right.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+
+    if (moveVector.lengthSq() > 0) {
+      moveVector.normalize().multiplyScalar(RTS_CAMERA_DEFAULTS.moveSpeed * delta * (spherical.radius / 32));
+      target.add(moveVector);
+      target.x = THREE.MathUtils.clamp(target.x, -95, 95);
+      target.z = THREE.MathUtils.clamp(target.z, -95, 95);
     }
 
-    const translation = rigidBody.translation();
-    if (translation.y < -10) {
-      rigidBody.setTranslation(SPAWN_POINT, true);
-      rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    }
+    cameraOffset.setFromSpherical(spherical);
+    camera.position.copy(target).add(cameraOffset);
+    camera.lookAt(target);
   });
 
+  return null;
+}
+
+export default function ModelingSandbox1() {
   return (
     <>
+      <StarcraftCameraController />
+
       {/* Realistic sky and environment */}
       <color attach='background' args={['#87CEEB']} />
       <fog attach='fog' args={['#87CEEB', 50, 200]} />
-      
+
       {/* Realistic lighting setup */}
-      {/* Ambient light - soft overall illumination */}
       <ambientLight intensity={0.4} color='#ffffff' />
-      
-      {/* Hemisphere light - simulates sky and ground reflection */}
-      <hemisphereLight 
-        intensity={0.6} 
-        color='#ffffff' 
-        groundColor='#8B7355' 
-      />
-      
-      {/* Main directional light (sun) - primary light source with shadows */}
-      <directionalLight 
-        castShadow 
-        position={[10, 20, 5]} 
-        intensity={1.2} 
-        color='#ffffff' 
+
+      <hemisphereLight intensity={0.6} color='#ffffff' groundColor='#8B7355' />
+
+      <directionalLight
+        castShadow
+        position={[10, 20, 5]}
+        intensity={1.2}
+        color='#ffffff'
         shadow-mapSize={[4096, 4096]}
         shadow-camera-left={-50}
         shadow-camera-right={50}
@@ -123,68 +186,27 @@ export default function ModelingSandbox1() {
         shadow-bias={-0.0001}
         shadow-normalBias={0.02}
       />
-      
-      {/* Fill light - soft light from opposite side to reduce harsh shadows */}
-      <directionalLight 
-        position={[-5, 10, -5]} 
-        intensity={0.3} 
-        color='#ffffff' 
-      />
-      
-      {/* Rim light - subtle backlight for depth */}
-      <directionalLight 
-        position={[0, 5, -10]} 
-        intensity={0.2} 
-        color='#ffffff' 
-      />
+
+      <directionalLight position={[-5, 10, -5]} intensity={0.3} color='#ffffff' />
+
+      <directionalLight position={[0, 5, -10]} intensity={0.2} color='#ffffff' />
 
       <ParticleEffectsProvider>
         <Physics timeStep='vary'>
-          <KeyboardControls map={RPG_KEYBOARD_MAP}>
-            <PlayerCharacter controllerRef={controllerRef} />
-          </KeyboardControls>
-
-          <ProgressionSystem
-            controllerRef={controllerRef}
-            trainingStations={trainingStations}
-            inputRef={inputRef}
-            nearbyInteractableIds={nearbyInteractableIds}
-          />
-
           {/* Ground plane - realistic surface */}
           <RigidBody type='fixed' position={[0, 0, 0]}>
             <CuboidCollider args={[100, 0.1, 100]} position={[0, -0.1, 0]} />
             <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
               <planeGeometry args={[200, 200]} />
-              <meshStandardMaterial 
-                color='#8B7355' 
-                roughness={0.9} 
-                metalness={0.1}
-              />
+              <meshStandardMaterial color='#8B7355' roughness={0.9} metalness={0.1} />
             </mesh>
           </RigidBody>
 
-          {/* Grid helper for reference */}
           <gridHelper args={[200, 200, '#888888', '#cccccc']} position={[0, 0.01, 0]} />
 
-          {/* Robot with animations */}
           <Suspense fallback={null}>
-            <Robot 
-              position={[5, 0, 0]} 
-              scale={1}
-              autoCycle={true}
-              cycleInterval={3000}
-            />
+            <Robot position={[5, 0, 0]} scale={1} autoCycle={true} cycleInterval={3000} />
           </Suspense>
-
-          {/* Training stations / interactables */}
-          {/* {trainingStations.map((station) => (
-            <TrainingStation
-              key={station.id}
-              station={station}
-              showInteractPrompt={nearbyInteractableIds.has(station.id)}
-            />
-          ))} */}
         </Physics>
       </ParticleEffectsProvider>
     </>
