@@ -8,6 +8,7 @@ const initialState = {
   wallCount: 0,
   amplifierCount: 0,
   turretCount: 0,
+  biomass: 0,
   buildSelection: 'wall',
   activeAmplifiers: [],
   enemyTypes: [],
