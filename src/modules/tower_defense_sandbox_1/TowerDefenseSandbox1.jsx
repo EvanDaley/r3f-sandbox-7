@@ -11,7 +11,7 @@ const TURRET_STORAGE_KEY = 'tower-defense-sandbox-1:turrets';
 
 const RTS_CAMERA_DEFAULTS = {
   target: new THREE.Vector3(0, 0, 0),
-  yaw: Math.PI / 4,
+  yaw: 0,
   pitch: THREE.MathUtils.degToRad(54),
   distance: 56,
   moveSpeed: 32,
@@ -19,17 +19,14 @@ const RTS_CAMERA_DEFAULTS = {
   zoomSpeed: 1.4,
   minDistance: 28,
   maxDistance: 95,
-  edgeThresholdPx: 28,
-  edgePanSpeed: 1,
   minPitch: THREE.MathUtils.degToRad(40),
   maxPitch: THREE.MathUtils.degToRad(68),
 };
 
 function StarcraftCameraController({ mapHalfSize }) {
-  const { camera, gl, size } = useThree();
+  const { camera, gl } = useThree();
   const stateRef = useRef({
     pressedKeys: new Set(),
-    mousePosition: { x: size.width / 2, y: size.height / 2 },
     middleMouseDown: false,
   });
 
@@ -70,12 +67,6 @@ function StarcraftCameraController({ mapHalfSize }) {
     };
 
     const onMouseMove = (event) => {
-      const rect = dom.getBoundingClientRect();
-      stateRef.current.mousePosition = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      };
-
       if (!stateRef.current.middleMouseDown) return;
 
       spherical.theta -= event.movementX * 0.004;
@@ -116,11 +107,11 @@ function StarcraftCameraController({ mapHalfSize }) {
   }, [gl, spherical]);
 
   useFrame((_, delta) => {
-    const { pressedKeys, mousePosition } = stateRef.current;
+    const { pressedKeys } = stateRef.current;
     const moveVector = new THREE.Vector3();
 
-    forward.set(Math.sin(spherical.theta), 0, Math.cos(spherical.theta)).normalize();
-    right.set(forward.z, 0, -forward.x).normalize();
+    forward.set(-Math.sin(spherical.theta), 0, -Math.cos(spherical.theta)).normalize();
+    right.set(-forward.z, 0, forward.x).normalize();
 
     if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) moveVector.add(forward);
     if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) moveVector.sub(forward);
@@ -129,16 +120,6 @@ function StarcraftCameraController({ mapHalfSize }) {
 
     if (pressedKeys.has('KeyQ')) spherical.theta += RTS_CAMERA_DEFAULTS.rotateSpeed * delta;
     if (pressedKeys.has('KeyE')) spherical.theta -= RTS_CAMERA_DEFAULTS.rotateSpeed * delta;
-
-    const nearLeftEdge = mousePosition.x <= RTS_CAMERA_DEFAULTS.edgeThresholdPx;
-    const nearRightEdge = mousePosition.x >= size.width - RTS_CAMERA_DEFAULTS.edgeThresholdPx;
-    const nearTopEdge = mousePosition.y <= RTS_CAMERA_DEFAULTS.edgeThresholdPx;
-    const nearBottomEdge = mousePosition.y >= size.height - RTS_CAMERA_DEFAULTS.edgeThresholdPx;
-
-    if (nearTopEdge) moveVector.add(forward.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
-    if (nearBottomEdge) moveVector.sub(forward.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
-    if (nearRightEdge) moveVector.add(right.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
-    if (nearLeftEdge) moveVector.sub(right.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
 
     if (moveVector.lengthSq() > 0) {
       moveVector.normalize().multiplyScalar(RTS_CAMERA_DEFAULTS.moveSpeed * delta * (spherical.radius / 40));
