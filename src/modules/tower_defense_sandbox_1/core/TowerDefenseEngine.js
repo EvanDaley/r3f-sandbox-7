@@ -248,6 +248,21 @@ export default class TowerDefenseEngine {
     this.rebuildFlowField();
   }
 
+  removeStructureAt(cellX, cellZ) {
+    if (!this.inBounds(cellX, cellZ)) return false;
+
+    const key = `${cellX},${cellZ}`;
+    const removedWall = this.walls.delete(key);
+    const removedTurret = this.turrets.delete(key);
+
+    if (removedWall || removedTurret) {
+      this.rebuildFlowField();
+      return true;
+    }
+
+    return false;
+  }
+
   getNearestEnemy(position, range) {
     let nearest = null;
     let bestDistSq = range * range;

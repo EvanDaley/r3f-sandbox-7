@@ -192,6 +192,77 @@ function ProjectileInstances({ engine }) {
   );
 }
 
+
+function BuildPreview({ engine, hoveredCell, buildSelection }) {
+  if (!hoveredCell) return null;
+
+  const { x, z } = hoveredCell;
+  const key = `${x},${z}`;
+  const hasWall = engine.walls.has(key);
+  const hasTurret = engine.turrets.has(key);
+  const hasStructure = hasWall || hasTurret;
+  const isHome = x === 0 && z === 0;
+
+  const canBuildWall = !isHome && !hasTurret;
+  const canBuildTurret = !isHome && !hasWall;
+  const canDelete = hasStructure;
+
+  const world = engine.cellToWorld(x, z);
+  const isDeleteMode = buildSelection === 'delete';
+  const shouldShowDelete = isDeleteMode && canDelete;
+
+  let color = '#f59e0b';
+  let previewType = buildSelection;
+
+  if (buildSelection === 'wall') {
+    color = canBuildWall ? '#94a3b8' : '#ef4444';
+  } else if (buildSelection === 'turret') {
+    color = canBuildTurret ? '#60a5fa' : '#ef4444';
+  } else {
+    color = canDelete ? '#f87171' : '#ef4444';
+    previewType = hasTurret ? 'turret' : 'wall';
+  }
+
+  return (
+    <group position={[world.x, 0, world.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+        <ringGeometry args={[engine.cellSize * 0.36, engine.cellSize * 0.48, 28]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={shouldShowDelete ? 0.85 : 0.6}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {previewType === 'turret' ? (
+        <>
+          <mesh position={[0, 0.35, 0]}>
+            <boxGeometry args={[engine.cellSize * 0.72, 0.7, engine.cellSize * 0.72]} />
+            <meshStandardMaterial color={color} transparent opacity={0.35} depthWrite={false} />
+          </mesh>
+          <mesh position={[0, 0.95, 0]}>
+            <coneGeometry args={[0.45, 0.8, 4]} />
+            <meshStandardMaterial color={color} transparent opacity={0.35} depthWrite={false} />
+          </mesh>
+        </>
+      ) : (
+        <mesh position={[0, 0.5, 0]}>
+          <boxGeometry args={[engine.cellSize * 0.95, 1, engine.cellSize * 0.95]} />
+          <meshStandardMaterial color={color} transparent opacity={0.35} depthWrite={false} />
+        </mesh>
+      )}
+
+      {shouldShowDelete && (
+        <mesh rotation={[-Math.PI / 4, 0, 0]} position={[0, 1.2, 0]}>
+          <planeGeometry args={[engine.cellSize * 0.8, engine.cellSize * 0.14]} />
+          <meshBasicMaterial color='#dc2626' transparent opacity={0.95} depthWrite={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 export default function TowerDefenseSandbox1() {
   const engine = useMemo(
     () => new TowerDefenseEngine({
@@ -208,6 +279,7 @@ export default function TowerDefenseSandbox1() {
   const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
 
   const [structureVersion, setStructureVersion] = useState(0);
+  const [hoveredCell, setHoveredCell] = useState(null);
   const controllerRef = useRef();
 
   useEffect(() => {
@@ -338,19 +410,34 @@ export default function TowerDefenseSandbox1() {
         <mesh
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
+          onPointerMove={(event) => {
+            const { x, z } = event.point;
+            const cell = engine.worldToCell(x, z);
+            setHoveredCell((prev) => (prev?.x === cell.x && prev?.z === cell.z ? prev : cell));
+          }}
+          onPointerOut={() => {
+            setHoveredCell(null);
+          }}
           onPointerDown={(event) => {
             if (event.button !== 2) return;
             event.stopPropagation();
             const { x, z } = event.point;
             const cell = engine.worldToCell(x, z);
+            let changed = false;
 
             if (buildSelection === 'turret') {
               engine.toggleTurret(cell.x, cell.z);
+              changed = true;
+            } else if (buildSelection === 'delete') {
+              changed = engine.removeStructureAt(cell.x, cell.z);
             } else {
               engine.toggleWall(cell.x, cell.z);
+              changed = true;
             }
 
-            setStructureVersion((value) => value + 1);
+            if (changed) {
+              setStructureVersion((value) => value + 1);
+            }
           }}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -367,6 +454,7 @@ export default function TowerDefenseSandbox1() {
           <meshStandardMaterial color='#22c55e' roughness={0.5} />
         </mesh>
 
+        <BuildPreview engine={engine} hoveredCell={hoveredCell} buildSelection={buildSelection} />
         <WallInstances engine={engine} structureVersion={structureVersion} />
         <TurretInstances engine={engine} structureVersion={structureVersion} />
         <ProjectileInstances engine={engine} />

@@ -113,6 +113,23 @@ export default function TowerDefenseHud() {
         >
           Build: Turret
         </button>
+        <button
+          type='button'
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setBuildSelection('delete');
+          }}
+          style={{
+            minWidth: 92,
+            background: buildSelection === 'delete' ? '#b91c1c' : '#1f2937',
+            color: '#fff',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}
+        >
+          Delete
+        </button>
       </div>
 
       {isOpen && (
@@ -174,7 +191,7 @@ export default function TowerDefenseHud() {
           <div style={{ padding: '10px 14px', fontSize: 11, opacity: 0.85 }}>
             <div>WASD: Move character</div>
             <div>Middle mouse: orbit camera</div>
-            <div>Right click ground: place/remove selected build</div>
+            <div>Right click ground: place selected build or delete structure</div>
             <div>N: Force wave · K: Add skull</div>
             {activeAmplifiers.map((amp) => (
               <div key={amp.id}>☠ {amp.label}</div>
