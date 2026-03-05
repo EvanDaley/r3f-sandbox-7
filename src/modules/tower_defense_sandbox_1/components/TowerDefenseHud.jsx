@@ -172,8 +172,11 @@ export default function TowerDefenseHud() {
           </div>
 
           <div style={{ padding: '10px 14px', fontSize: 11, opacity: 0.85 }}>
-            <div>WASD: Move character</div>
-            <div>Middle mouse: orbit camera</div>
+            <div>WASD / Arrow keys: Pan camera</div>
+            <div>Screen edge: Pan camera</div>
+            <div>Middle mouse drag: Rotate camera</div>
+            <div>Q / E: Rotate camera</div>
+            <div>Mouse wheel: Zoom camera</div>
             <div>Right click ground: place/remove selected build</div>
             <div>N: Force wave · K: Add skull</div>
             {activeAmplifiers.map((amp) => (

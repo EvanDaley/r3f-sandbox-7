@@ -1,37 +1,158 @@
-import { KeyboardControls } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { RPG_KEYBOARD_MAP } from '../rpg/config/progressionConfig';
-import Ecctrl from '../third_person_controller/Ecctrl';
 import TowerDefenseEngine from './core/TowerDefenseEngine';
 import useTowerDefenseUiStore from './stores/useTowerDefenseUiStore';
 
 const dummy = new THREE.Object3D();
-const SPAWN_POINT = new THREE.Vector3(0, 1.5, -2);
 const WALL_STORAGE_KEY = 'tower-defense-sandbox-1:walls';
 const TURRET_STORAGE_KEY = 'tower-defense-sandbox-1:turrets';
 
-function PlayerCharacter({ controllerRef }) {
-  return (
-    <Ecctrl
-      springK={2}
-      dampingC={0.2}
-      camInitDis={-35}
-      camMaxDis={-80}
-      camCollisionOffset={0.3}
-      camInitDir={{ x: 0.7, y: 0 }}
-      camTargetPos={{ x: 0, y: 1.5, z: 0 }}
-      position={SPAWN_POINT.toArray()}
-      ref={controllerRef}
-    >
-      <mesh castShadow>
-        <boxGeometry args={[0.8, 0.8, 0.8]} />
-        <meshStandardMaterial color='#60a5fa' roughness={0.5} metalness={0.1} />
-      </mesh>
-    </Ecctrl>
+const RTS_CAMERA_DEFAULTS = {
+  target: new THREE.Vector3(0, 0, 0),
+  yaw: Math.PI / 4,
+  pitch: THREE.MathUtils.degToRad(54),
+  distance: 56,
+  moveSpeed: 32,
+  rotateSpeed: 2.2,
+  zoomSpeed: 1.4,
+  minDistance: 28,
+  maxDistance: 95,
+  edgeThresholdPx: 28,
+  edgePanSpeed: 1,
+  minPitch: THREE.MathUtils.degToRad(40),
+  maxPitch: THREE.MathUtils.degToRad(68),
+};
+
+function StarcraftCameraController({ mapHalfSize }) {
+  const { camera, gl, size } = useThree();
+  const stateRef = useRef({
+    pressedKeys: new Set(),
+    mousePosition: { x: size.width / 2, y: size.height / 2 },
+    middleMouseDown: false,
+  });
+
+  const spherical = useMemo(
+    () => new THREE.Spherical(RTS_CAMERA_DEFAULTS.distance, RTS_CAMERA_DEFAULTS.pitch, RTS_CAMERA_DEFAULTS.yaw),
+    []
   );
+
+  const target = useMemo(() => RTS_CAMERA_DEFAULTS.target.clone(), []);
+  const cameraOffset = useMemo(() => new THREE.Vector3(), []);
+  const forward = useMemo(() => new THREE.Vector3(), []);
+  const right = useMemo(() => new THREE.Vector3(), []);
+
+  useEffect(() => {
+    camera.fov = 45;
+    camera.near = 0.1;
+    camera.far = 1400;
+    camera.updateProjectionMatrix();
+  }, [camera]);
+
+  useEffect(() => {
+    const dom = gl.domElement;
+
+    const onContextMenu = (event) => event.preventDefault();
+    const onKeyDown = (event) => stateRef.current.pressedKeys.add(event.code);
+    const onKeyUp = (event) => stateRef.current.pressedKeys.delete(event.code);
+
+    const onMouseDown = (event) => {
+      if (event.button === 1) {
+        stateRef.current.middleMouseDown = true;
+      }
+    };
+
+    const onMouseUp = (event) => {
+      if (event.button === 1) {
+        stateRef.current.middleMouseDown = false;
+      }
+    };
+
+    const onMouseMove = (event) => {
+      const rect = dom.getBoundingClientRect();
+      stateRef.current.mousePosition = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+
+      if (!stateRef.current.middleMouseDown) return;
+
+      spherical.theta -= event.movementX * 0.004;
+      spherical.phi = THREE.MathUtils.clamp(
+        spherical.phi + event.movementY * 0.003,
+        RTS_CAMERA_DEFAULTS.minPitch,
+        RTS_CAMERA_DEFAULTS.maxPitch
+      );
+    };
+
+    const onWheel = (event) => {
+      event.preventDefault();
+      const zoomDelta = event.deltaY * 0.01 * RTS_CAMERA_DEFAULTS.zoomSpeed;
+      spherical.radius = THREE.MathUtils.clamp(
+        spherical.radius + zoomDelta,
+        RTS_CAMERA_DEFAULTS.minDistance,
+        RTS_CAMERA_DEFAULTS.maxDistance
+      );
+    };
+
+    dom.addEventListener('contextmenu', onContextMenu);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    dom.addEventListener('mousemove', onMouseMove);
+    dom.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      dom.removeEventListener('contextmenu', onContextMenu);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      dom.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+      dom.removeEventListener('mousemove', onMouseMove);
+      dom.removeEventListener('wheel', onWheel);
+    };
+  }, [gl, spherical]);
+
+  useFrame((_, delta) => {
+    const { pressedKeys, mousePosition } = stateRef.current;
+    const moveVector = new THREE.Vector3();
+
+    forward.set(Math.sin(spherical.theta), 0, Math.cos(spherical.theta)).normalize();
+    right.set(forward.z, 0, -forward.x).normalize();
+
+    if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) moveVector.add(forward);
+    if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) moveVector.sub(forward);
+    if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) moveVector.add(right);
+    if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) moveVector.sub(right);
+
+    if (pressedKeys.has('KeyQ')) spherical.theta += RTS_CAMERA_DEFAULTS.rotateSpeed * delta;
+    if (pressedKeys.has('KeyE')) spherical.theta -= RTS_CAMERA_DEFAULTS.rotateSpeed * delta;
+
+    const nearLeftEdge = mousePosition.x <= RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+    const nearRightEdge = mousePosition.x >= size.width - RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+    const nearTopEdge = mousePosition.y <= RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+    const nearBottomEdge = mousePosition.y >= size.height - RTS_CAMERA_DEFAULTS.edgeThresholdPx;
+
+    if (nearTopEdge) moveVector.add(forward.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+    if (nearBottomEdge) moveVector.sub(forward.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+    if (nearRightEdge) moveVector.add(right.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+    if (nearLeftEdge) moveVector.sub(right.clone().multiplyScalar(RTS_CAMERA_DEFAULTS.edgePanSpeed));
+
+    if (moveVector.lengthSq() > 0) {
+      moveVector.normalize().multiplyScalar(RTS_CAMERA_DEFAULTS.moveSpeed * delta * (spherical.radius / 40));
+      target.add(moveVector);
+      target.x = THREE.MathUtils.clamp(target.x, -mapHalfSize, mapHalfSize);
+      target.z = THREE.MathUtils.clamp(target.z, -mapHalfSize, mapHalfSize);
+    }
+
+    cameraOffset.setFromSpherical(spherical);
+    camera.position.copy(target).add(cameraOffset);
+    camera.lookAt(target);
+  });
+
+  return null;
 }
 
 function EnemyTypeInstances({ engine, typeIndex }) {
@@ -208,8 +329,6 @@ export default function TowerDefenseSandbox1() {
   const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
 
   const [structureVersion, setStructureVersion] = useState(0);
-  const controllerRef = useRef();
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -296,12 +415,6 @@ export default function TowerDefenseSandbox1() {
   useFrame((state, delta) => {
     engine.update(Math.min(delta, 1 / 24), state.clock.getElapsedTime());
 
-    const rigidBody = controllerRef.current?.group;
-    if (rigidBody && rigidBody.translation().y < -10) {
-      rigidBody.setTranslation(SPAWN_POINT, true);
-      rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    }
-
     const activeEnemies = engine.enemies.reduce((count, enemy) => count + Number(enemy.active), 0);
     setSnapshot({
       waveNumber: engine.waveNumber,
@@ -320,6 +433,8 @@ export default function TowerDefenseSandbox1() {
 
   return (
     <>
+      <StarcraftCameraController mapHalfSize={gridWorldSize / 2 - engine.cellSize} />
+
       <color attach='background' args={['#87CEEB']} />
       <fog attach='fog' args={['#87CEEB', 40, 220]} />
       <ambientLight intensity={0.45} />
@@ -327,10 +442,6 @@ export default function TowerDefenseSandbox1() {
       <directionalLight castShadow position={[16, 24, 10]} intensity={1.15} shadow-mapSize={[2048, 2048]} />
 
       <Physics timeStep='vary'>
-        <KeyboardControls map={RPG_KEYBOARD_MAP}>
-          <PlayerCharacter controllerRef={controllerRef} />
-        </KeyboardControls>
-
         <RigidBody type='fixed' colliders={false}>
           <CuboidCollider args={[gridWorldSize / 2, 0.1, gridWorldSize / 2]} position={[0, -0.1, 0]} />
         </RigidBody>
