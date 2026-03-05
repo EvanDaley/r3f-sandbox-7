@@ -192,6 +192,56 @@ function ProjectileInstances({ engine }) {
   );
 }
 
+function BuildPreview({ engine, buildSelection, hoveredCell }) {
+  if (!hoveredCell) return null;
+
+  const { x, z } = hoveredCell;
+  if (!engine.inBounds(x, z)) return null;
+
+  const key = `${x},${z}`;
+  const world = engine.cellToWorld(x, z);
+  const isHomeCell = x === 0 && z === 0;
+  const hasWall = engine.walls.has(key);
+  const hasTurret = engine.turrets.has(key);
+
+  let mode = 'blocked';
+  if (buildSelection === 'turret') {
+    if (hasTurret) {
+      mode = 'delete';
+    } else if (!hasWall && !isHomeCell) {
+      mode = 'place';
+    }
+  } else if (hasWall) {
+    mode = 'delete';
+  } else if (!hasTurret && !isHomeCell) {
+    mode = 'place';
+  }
+
+  const color = mode === 'place' ? '#22c55e' : '#ef4444';
+
+  if (buildSelection === 'turret') {
+    return (
+      <group position={[world.x, 0, world.z]}>
+        <mesh position={[0, 0.35, 0]}>
+          <boxGeometry args={[engine.cellSize * 0.72, 0.7, engine.cellSize * 0.72]} />
+          <meshStandardMaterial color={color} transparent opacity={0.45} emissive={color} emissiveIntensity={0.35} depthWrite={false} />
+        </mesh>
+        <mesh position={[0, 0.95, 0]}>
+          <coneGeometry args={[0.45, 0.8, 4]} />
+          <meshStandardMaterial color={color} transparent opacity={0.45} emissive={color} emissiveIntensity={0.35} depthWrite={false} />
+        </mesh>
+      </group>
+    );
+  }
+
+  return (
+    <mesh position={[world.x, 0.5, world.z]}>
+      <boxGeometry args={[engine.cellSize * 0.95, 1, engine.cellSize * 0.95]} />
+      <meshStandardMaterial color={color} transparent opacity={0.45} emissive={color} emissiveIntensity={0.35} depthWrite={false} />
+    </mesh>
+  );
+}
+
 export default function TowerDefenseSandbox1() {
   const engine = useMemo(
     () => new TowerDefenseEngine({
@@ -208,6 +258,7 @@ export default function TowerDefenseSandbox1() {
   const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
 
   const [structureVersion, setStructureVersion] = useState(0);
+  const [hoveredCell, setHoveredCell] = useState(null);
   const controllerRef = useRef();
 
   useEffect(() => {
@@ -339,6 +390,14 @@ export default function TowerDefenseSandbox1() {
         <mesh
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
+          onPointerMove={(event) => {
+            const { x, z } = event.point;
+            const cell = engine.worldToCell(x, z);
+            setHoveredCell(cell);
+          }}
+          onPointerOut={() => {
+            setHoveredCell(null);
+          }}
           onPointerDown={(event) => {
             if (event.button !== 2) return;
             event.stopPropagation();
@@ -370,6 +429,7 @@ export default function TowerDefenseSandbox1() {
 
         <WallInstances engine={engine} structureVersion={structureVersion} />
         <TurretInstances engine={engine} structureVersion={structureVersion} />
+        <BuildPreview engine={engine} buildSelection={buildSelection} hoveredCell={hoveredCell} />
         <ProjectileInstances engine={engine} />
         <EnemyInstances engine={engine} />
       </Physics>
