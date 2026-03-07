@@ -158,6 +158,16 @@ export default function TowerDefenseHud() {
             >
               Clear Turrets
             </button>
+            <button
+              type='button'
+              onClick={() => window.dispatchEvent(new Event('td:export-layout'))}
+              style={{
+                background: '#0ea5e9',
+                color: '#fff',
+              }}
+            >
+              Export Layout JSON
+            </button>
           </div>
 
           <div style={{ padding: '10px 14px', fontSize: 12, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
