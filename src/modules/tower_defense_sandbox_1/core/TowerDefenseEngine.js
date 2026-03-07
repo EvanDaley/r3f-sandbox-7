@@ -13,6 +13,10 @@ const ENEMY_TYPES = [
     baseSpeed: 3.8,
     baseHealth: 55,
     biomassReward: 1,
+    energyReward: 2,
+    carbonReward: 1,
+    uraniumReward: 0,
+    crystalReward: 1,
     weight: 5,
   },
   {
@@ -23,6 +27,10 @@ const ENEMY_TYPES = [
     baseSpeed: 2.2,
     baseHealth: 140,
     biomassReward: 3,
+    energyReward: 1,
+    carbonReward: 2,
+    uraniumReward: 1,
+    crystalReward: 0,
     weight: 2,
   },
   {
@@ -33,6 +41,10 @@ const ENEMY_TYPES = [
     baseSpeed: 3.1,
     baseHealth: 85,
     biomassReward: 2,
+    energyReward: 3,
+    carbonReward: 0,
+    uraniumReward: 0,
+    crystalReward: 2,
     weight: 3,
   },
 ];
@@ -85,6 +97,10 @@ export default class TowerDefenseEngine {
     this.activeAmplifierIds = [];
     this.waveNumber = 0;
     this.biomass = 0;
+    this.energy = 0;
+    this.carbon = 0;
+    this.uranium = 0;
+    this.crystal = 0;
 
     this.halfGrid = Math.floor(gridSize / 2);
     this.walls = new Set();
@@ -311,6 +327,10 @@ export default class TowerDefenseEngine {
         if (hitEnemy.health <= 0) {
           const enemyType = this.enemyTypes[hitEnemy.typeIndex] ?? this.enemyTypes[0];
           this.biomass += enemyType?.biomassReward ?? 1;
+          this.energy += enemyType?.energyReward ?? 0;
+          this.carbon += enemyType?.carbonReward ?? 0;
+          this.uranium += enemyType?.uraniumReward ?? 0;
+          this.crystal += enemyType?.crystalReward ?? 0;
           hitEnemy.active = false;
         }
         this.projectiles.splice(i, 1);

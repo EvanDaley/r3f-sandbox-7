@@ -18,6 +18,39 @@ const panelStyles = {
     cursor: 'pointer',
     backdropFilter: 'blur(6px)',
   },
+  resourceBar: {
+    position: 'fixed',
+    top: 12,
+    right: 12,
+    zIndex: 60,
+    display: 'flex',
+    gap: 8,
+    padding: '8px 10px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.18)',
+    background: 'rgba(13, 18, 30, 0.9)',
+    backdropFilter: 'blur(10px)',
+    boxShadow: '0 10px 28px rgba(0,0,0,0.35)',
+  },
+  resourceItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 12,
+    color: '#f8fafc',
+    minWidth: 92,
+  },
+  resourceIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
   panel: {
     color: '#f8fafc',
     background: 'rgba(13, 18, 30, 0.9)',
@@ -45,10 +78,22 @@ export default function TowerDefenseHud() {
   const amplifierCount = useTowerDefenseUiStore((state) => state.amplifierCount);
   const turretCount = useTowerDefenseUiStore((state) => state.turretCount);
   const biomass = useTowerDefenseUiStore((state) => state.biomass);
+  const energy = useTowerDefenseUiStore((state) => state.energy);
+  const carbon = useTowerDefenseUiStore((state) => state.carbon);
+  const uranium = useTowerDefenseUiStore((state) => state.uranium);
+  const crystal = useTowerDefenseUiStore((state) => state.crystal);
   const buildSelection = useTowerDefenseUiStore((state) => state.buildSelection);
   const activeAmplifiers = useTowerDefenseUiStore((state) => state.activeAmplifiers);
   const setBuildSelection = useTowerDefenseUiStore((state) => state.setBuildSelection);
   const enemyTypes = useTowerDefenseUiStore((state) => state.enemyTypes);
+
+  const resources = [
+    { key: 'biomass', label: 'Biomass', value: biomass, icon: '🧬', color: '#22c55e' },
+    { key: 'energy', label: 'Energy', value: energy, icon: '⚡', color: '#facc15' },
+    { key: 'carbon', label: 'Carbon', value: carbon, icon: '⬛', color: '#9ca3af' },
+    { key: 'uranium', label: 'Uranium', value: uranium, icon: '☢', color: '#84cc16' },
+    { key: 'crystal', label: 'Crystal', value: crystal, icon: '💎', color: '#38bdf8' },
+  ];
 
   return (
     <>
@@ -56,6 +101,15 @@ export default function TowerDefenseHud() {
         {isOpen ? 'Hide Tower Defense' : 'Open Tower Defense'}
       </button>
 
+      <div style={panelStyles.resourceBar}>
+        {resources.map((resource) => (
+          <div key={resource.key} style={panelStyles.resourceItem} title={resource.label}>
+            <span style={{ ...panelStyles.resourceIcon, background: resource.color }}>{resource.icon}</span>
+            <span style={{ opacity: 0.9 }}>{resource.label}:</span>
+            <strong>{resource.value}</strong>
+          </div>
+        ))}
+      </div>
 
       <div
         onPointerDown={(event) => {
@@ -127,7 +181,6 @@ export default function TowerDefenseHud() {
             <div>Amplifiers: {amplifierCount}</div>
             <div>Walls: {wallCount}</div>
             <div>Turrets: {turretCount}</div>
-            <div>Biomass: {biomass}</div>
             <div>Build mode: {buildSelection}</div>
           </div>
 
