@@ -12,6 +12,7 @@ const dummy = new THREE.Object3D();
 const SPAWN_POINT = new THREE.Vector3(0, 1.5, -2);
 const WALL_STORAGE_KEY = 'tower-defense-sandbox-1:walls';
 const TURRET_STORAGE_KEY = 'tower-defense-sandbox-1:turrets';
+const FULL_SAVE_STORAGE_KEY = 'tower-defense-sandbox-1:save-data';
 
 function PlayerCharacter({ controllerRef }) {
   return (
@@ -264,22 +265,26 @@ export default function TowerDefenseSandbox1() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      const rawFullSave = window.localStorage.getItem(FULL_SAVE_STORAGE_KEY);
+      if (rawFullSave) {
+        engine.loadSaveData(JSON.parse(rawFullSave));
+        setStructureVersion((value) => value + 1);
+        return;
+      }
+
       const rawWalls = window.localStorage.getItem(WALL_STORAGE_KEY);
       const rawTurrets = window.localStorage.getItem(TURRET_STORAGE_KEY);
       const wallKeys = rawWalls ? JSON.parse(rawWalls) : [];
       const turretKeys = rawTurrets ? JSON.parse(rawTurrets) : [];
 
-      // Set walls and turrets without rebuilding flow field each time
       if (Array.isArray(wallKeys)) {
         engine.setWalls(wallKeys, false);
       }
       if (Array.isArray(turretKeys)) {
         engine.setTurrets(turretKeys, false);
       }
-      
-      // Rebuild flow field once after both are set
-      engine.rebuildFlowField();
 
+      engine.rebuildFlowField();
       setStructureVersion((value) => value + 1);
     } catch {
       // Ignore malformed save data.
@@ -290,6 +295,7 @@ export default function TowerDefenseSandbox1() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(WALL_STORAGE_KEY, JSON.stringify(Array.from(engine.walls)));
     window.localStorage.setItem(TURRET_STORAGE_KEY, JSON.stringify(Array.from(engine.turrets)));
+    window.localStorage.setItem(FULL_SAVE_STORAGE_KEY, JSON.stringify(engine.createSaveData()));
   }, [engine, structureVersion]);
 
   useEffect(() => {
@@ -316,6 +322,7 @@ export default function TowerDefenseSandbox1() {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem(WALL_STORAGE_KEY);
         window.localStorage.removeItem(TURRET_STORAGE_KEY);
+        window.localStorage.removeItem(FULL_SAVE_STORAGE_KEY);
       }
       setStructureVersion((value) => value + 1);
     };
@@ -328,11 +335,48 @@ export default function TowerDefenseSandbox1() {
       setStructureVersion((value) => value + 1);
     };
 
+    const onExportSave = () => {
+      if (typeof window === 'undefined') return;
+      const saveData = engine.createSaveData();
+      const json = JSON.stringify(saveData, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `tower-defense-save-${Date.now()}.json`;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+    };
+
+    const onImportSave = (event) => {
+      const file = event?.detail?.file;
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result ?? '{}'));
+          engine.loadSaveData(parsed);
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(FULL_SAVE_STORAGE_KEY, JSON.stringify(engine.createSaveData()));
+            window.localStorage.setItem(WALL_STORAGE_KEY, JSON.stringify(Array.from(engine.walls)));
+            window.localStorage.setItem(TURRET_STORAGE_KEY, JSON.stringify(Array.from(engine.turrets)));
+          }
+          setStructureVersion((value) => value + 1);
+        } catch {
+          console.warn('Invalid tower defense save file.');
+        }
+      };
+      reader.readAsText(file);
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('td:force-wave', onForceWave);
     window.addEventListener('td:add-amplifier', onAddAmplifier);
     window.addEventListener('td:clear-all', onClearAll);
     window.addEventListener('td:clear-turrets', onClearTurrets);
+    window.addEventListener('td:export-save', onExportSave);
+    window.addEventListener('td:import-save', onImportSave);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
@@ -340,6 +384,8 @@ export default function TowerDefenseSandbox1() {
       window.removeEventListener('td:add-amplifier', onAddAmplifier);
       window.removeEventListener('td:clear-all', onClearAll);
       window.removeEventListener('td:clear-turrets', onClearTurrets);
+      window.removeEventListener('td:export-save', onExportSave);
+      window.removeEventListener('td:import-save', onImportSave);
       resetHud();
     };
   }, [engine, resetHud]);

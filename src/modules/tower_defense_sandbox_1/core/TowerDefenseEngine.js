@@ -121,6 +121,150 @@ export default class TowerDefenseEngine {
     this.rebuildFlowField();
   }
 
+  createSaveData() {
+    return {
+      version: 1,
+      grid: {
+        size: this.gridSize,
+        cellSize: this.cellSize,
+      },
+      stats: {
+        waveNumber: this.waveNumber,
+        biomass: this.biomass,
+        lastWaveTime: this.lastWaveTime,
+        nextTurretFireTime: this.nextTurretFireTime,
+      },
+      progression: {
+        activeAmplifierIds: [...this.activeAmplifierIds],
+        pendingSpawns: this.pendingSpawns.map((spawn) => ({
+          spawnAt: spawn.spawnAt,
+          typeIndex: spawn.typeIndex,
+        })),
+      },
+      structures: {
+        walls: [...this.walls],
+        turrets: [...this.turrets],
+      },
+      enemies: this.enemies.map((enemy) => ({
+        id: enemy.id,
+        active: enemy.active,
+        typeIndex: enemy.typeIndex,
+        size: enemy.size,
+        speed: enemy.speed,
+        maxHealth: enemy.maxHealth,
+        health: enemy.health,
+        position: {
+          x: enemy.position.x,
+          y: enemy.position.y,
+          z: enemy.position.z,
+        },
+        velocity: {
+          x: enemy.velocity.x,
+          y: enemy.velocity.y,
+          z: enemy.velocity.z,
+        },
+      })),
+      projectiles: this.projectiles.map((projectile) => ({
+        ttl: projectile.ttl,
+        damage: projectile.damage,
+        position: {
+          x: projectile.position.x,
+          y: projectile.position.y,
+          z: projectile.position.z,
+        },
+        velocity: {
+          x: projectile.velocity.x,
+          y: projectile.velocity.y,
+          z: projectile.velocity.z,
+        },
+      })),
+    };
+  }
+
+  loadSaveData(rawData) {
+    const data = rawData ?? {};
+
+    const walls = Array.isArray(data?.structures?.walls) ? data.structures.walls : [];
+    const turrets = Array.isArray(data?.structures?.turrets) ? data.structures.turrets : [];
+    this.setWalls(walls, false);
+    this.setTurrets(turrets, false);
+
+    const waveNumber = Number(data?.stats?.waveNumber);
+    const biomass = Number(data?.stats?.biomass);
+    const lastWaveTime = Number(data?.stats?.lastWaveTime);
+    const nextTurretFireTime = Number(data?.stats?.nextTurretFireTime);
+
+    this.waveNumber = Number.isFinite(waveNumber) ? Math.max(0, Math.floor(waveNumber)) : 0;
+    this.biomass = Number.isFinite(biomass) ? Math.max(0, biomass) : 0;
+    this.lastWaveTime = Number.isFinite(lastWaveTime) ? lastWaveTime : -this.waveInterval;
+    this.nextTurretFireTime = Number.isFinite(nextTurretFireTime) ? nextTurretFireTime : 0;
+
+    const amplifierIds = Array.isArray(data?.progression?.activeAmplifierIds) ? data.progression.activeAmplifierIds : [];
+    this.activeAmplifierIds = amplifierIds.filter((id) => this.amplifierPool.some((amp) => amp.id === id));
+
+    const pendingSpawns = Array.isArray(data?.progression?.pendingSpawns) ? data.progression.pendingSpawns : [];
+    this.pendingSpawns = pendingSpawns
+      .map((spawn) => ({
+        spawnAt: Number(spawn?.spawnAt),
+        typeIndex: Number(spawn?.typeIndex),
+      }))
+      .filter((spawn) => Number.isFinite(spawn.spawnAt) && Number.isInteger(spawn.typeIndex) && spawn.typeIndex >= 0 && spawn.typeIndex < this.enemyTypes.length)
+      .sort((a, b) => a.spawnAt - b.spawnAt);
+
+    const enemyData = Array.isArray(data?.enemies) ? data.enemies : [];
+    this.enemies.forEach((enemy) => {
+      const savedEnemy = enemyData.find((item) => item?.id === enemy.id);
+      if (!savedEnemy) {
+        enemy.active = false;
+        enemy.velocity.set(0, 0, 0);
+        return;
+      }
+
+      enemy.active = Boolean(savedEnemy.active);
+      enemy.typeIndex = Number.isInteger(savedEnemy.typeIndex) ? THREE.MathUtils.clamp(savedEnemy.typeIndex, 0, this.enemyTypes.length - 1) : 0;
+      enemy.size = Number.isFinite(savedEnemy.size) ? savedEnemy.size : this.enemyTypes[enemy.typeIndex].size;
+      enemy.speed = Number.isFinite(savedEnemy.speed) ? savedEnemy.speed : this.enemyTypes[enemy.typeIndex].baseSpeed;
+      enemy.maxHealth = Number.isFinite(savedEnemy.maxHealth) ? savedEnemy.maxHealth : this.enemyTypes[enemy.typeIndex].baseHealth;
+      enemy.health = Number.isFinite(savedEnemy.health) ? Math.min(savedEnemy.health, enemy.maxHealth) : enemy.maxHealth;
+      enemy.position.set(
+        Number.isFinite(savedEnemy?.position?.x) ? savedEnemy.position.x : 0,
+        Number.isFinite(savedEnemy?.position?.y) ? savedEnemy.position.y : 0.55,
+        Number.isFinite(savedEnemy?.position?.z) ? savedEnemy.position.z : 0
+      );
+      enemy.velocity.set(
+        Number.isFinite(savedEnemy?.velocity?.x) ? savedEnemy.velocity.x : 0,
+        Number.isFinite(savedEnemy?.velocity?.y) ? savedEnemy.velocity.y : 0,
+        Number.isFinite(savedEnemy?.velocity?.z) ? savedEnemy.velocity.z : 0
+      );
+    });
+
+    const projectileData = Array.isArray(data?.projectiles) ? data.projectiles : [];
+    this.projectiles = projectileData
+      .map((projectile) => {
+        const ttl = Number(projectile?.ttl);
+        const damage = Number(projectile?.damage);
+        if (!Number.isFinite(ttl) || !Number.isFinite(damage) || ttl <= 0) return null;
+
+        return {
+          ttl,
+          damage,
+          position: new THREE.Vector3(
+            Number.isFinite(projectile?.position?.x) ? projectile.position.x : 0,
+            Number.isFinite(projectile?.position?.y) ? projectile.position.y : 0,
+            Number.isFinite(projectile?.position?.z) ? projectile.position.z : 0
+          ),
+          velocity: new THREE.Vector3(
+            Number.isFinite(projectile?.velocity?.x) ? projectile.velocity.x : 0,
+            Number.isFinite(projectile?.velocity?.y) ? projectile.velocity.y : 0,
+            Number.isFinite(projectile?.velocity?.z) ? projectile.velocity.z : 0
+          ),
+        };
+      })
+      .filter(Boolean);
+
+    this.rebuildFlowField();
+  }
+
   get activeAmplifiers() {
     return this.activeAmplifierIds
       .map((id) => this.amplifierPool.find((amp) => amp.id === id))

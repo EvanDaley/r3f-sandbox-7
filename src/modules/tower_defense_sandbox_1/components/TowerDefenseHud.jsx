@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import useTowerDefenseUiStore from '../stores/useTowerDefenseUiStore';
 
 const panelStyles = {
@@ -37,6 +37,7 @@ const panelStyles = {
 
 export default function TowerDefenseHud() {
   const [isOpen, setIsOpen] = useState(true);
+  const saveInputRef = useRef(null);
   const waveNumber = useTowerDefenseUiStore((state) => state.waveNumber);
   const activeEnemies = useTowerDefenseUiStore((state) => state.activeEnemies);
   const maxEnemies = useTowerDefenseUiStore((state) => state.maxEnemies);
@@ -158,6 +159,38 @@ export default function TowerDefenseHud() {
             >
               Clear Turrets
             </button>
+            <button
+              type='button'
+              onClick={() => window.dispatchEvent(new Event('td:export-save'))}
+              style={{
+                background: '#0f766e',
+                color: '#fff',
+              }}
+            >
+              Save JSON
+            </button>
+            <button
+              type='button'
+              onClick={() => saveInputRef.current?.click()}
+              style={{
+                background: '#0ea5e9',
+                color: '#fff',
+              }}
+            >
+              Load JSON
+            </button>
+            <input
+              ref={saveInputRef}
+              type='file'
+              accept='application/json,.json'
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                window.dispatchEvent(new CustomEvent('td:import-save', { detail: { file } }));
+                event.target.value = '';
+              }}
+            />
           </div>
 
           <div style={{ padding: '10px 14px', fontSize: 12, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
