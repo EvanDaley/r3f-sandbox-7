@@ -4,3 +4,9 @@ dist
 .vscode
 exampleDist
 .idea
+
+# .NET artifacts
+**/bin/
+**/obj/
+*.user
+*.suo
