@@ -4,6 +4,8 @@ import FlowFieldPathfindingStrategy from './strategies/FlowFieldPathfindingStrat
 
 const HOME_CELL = { x: 0, z: 0 };
 
+const MOVE_SPEED_MULTIPLIER = .6;
+
 const ENEMY_TYPES = [
   {
     id: 'runner',
@@ -397,7 +399,7 @@ export default class TowerDefenseEngine {
       enemy.active = true;
       enemy.typeIndex = typeIndex;
       enemy.size = type.size;
-      enemy.speed = type.baseSpeed * multipliers.speedMultiplier;
+      enemy.speed = type.baseSpeed * multipliers.speedMultiplier * MOVE_SPEED_MULTIPLIER;
       enemy.maxHealth = Math.round(type.baseHealth * multipliers.healthMultiplier);
       enemy.health = enemy.maxHealth;
       return true;
