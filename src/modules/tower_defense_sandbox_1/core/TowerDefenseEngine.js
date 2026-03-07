@@ -7,30 +7,43 @@ const HOME_CELL = { x: 0, z: 0 };
 const ENEMY_TYPES = [
   {
     id: 'runner',
-    label: 'Runner Drone',
+    label: 'Goblin Runner',
     color: '#ef4444',
     size: 0.75,
     baseSpeed: 3.8,
     baseHealth: 55,
     weight: 5,
+    modelPath: './models/organic/goblin1.glb',
   },
   {
     id: 'tank',
-    label: 'Bulwark Cube',
+    label: 'Goblin Brute',
     color: '#f59e0b',
     size: 1.15,
     baseSpeed: 2.2,
     baseHealth: 140,
     weight: 2,
+    modelPath: './models/organic/goblin2.glb',
   },
   {
     id: 'striker',
-    label: 'Striker Prism',
+    label: 'Goblin Striker',
     color: '#8b5cf6',
     size: 0.9,
     baseSpeed: 3.1,
     baseHealth: 85,
     weight: 3,
+    modelPath: './models/organic/goblin3.glb',
+  },
+  {
+    id: 'goblin',
+    label: 'Goblin Scout',
+    color: '#22c55e',
+    size: 0.8,
+    baseSpeed: 3.5,
+    baseHealth: 70,
+    weight: 4,
+    modelPath: './models/organic/goblin4.glb',
   },
 ];
 
@@ -379,7 +392,7 @@ export default class TowerDefenseEngine {
       
       const world = this.cellToWorld(cell.x, cell.z);
 
-      enemy.position.set(world.x, 0.55, world.z);
+      enemy.position.set(world.x, 0, world.z);
       enemy.velocity.set(0, 0, 0);
       enemy.active = true;
       enemy.typeIndex = typeIndex;
@@ -440,7 +453,7 @@ export default class TowerDefenseEngine {
       const flow = this.flowDirection(enemy.position, this.tempVecB);
       this.steeringStrategy.apply(enemy, this.enemies, flow, deltaTime, this.tempVecA, this.tempVecC);
       enemy.position.addScaledVector(enemy.velocity, deltaTime);
-      enemy.position.y = 0.55;
+      enemy.position.y = 0;
     }
 
     this.updateTurrets(deltaTime, elapsedTime);

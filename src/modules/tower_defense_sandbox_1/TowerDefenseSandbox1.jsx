@@ -7,6 +7,7 @@ import { RPG_KEYBOARD_MAP } from '../rpg/config/progressionConfig';
 import Ecctrl from '../third_person_controller/Ecctrl';
 import TowerDefenseEngine from './core/TowerDefenseEngine';
 import useTowerDefenseUiStore from './stores/useTowerDefenseUiStore';
+import EnemyInstances2 from './components/EnemyInstances2';
 
 const dummy = new THREE.Object3D();
 const SPAWN_POINT = new THREE.Vector3(0, 1.5, -2);
@@ -47,50 +48,6 @@ function PlayerCharacter({ controllerRef }) {
   );
 }
 
-function EnemyTypeInstances({ engine, typeIndex }) {
-  const meshRef = useRef();
-
-  useFrame(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-
-    let index = 0;
-    for (const enemy of engine.enemies) {
-      if (!enemy.active || enemy.typeIndex !== typeIndex) continue;
-
-      dummy.position.copy(enemy.position);
-      dummy.rotation.y = Math.atan2(enemy.velocity.x, enemy.velocity.z);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(index, dummy.matrix);
-      index += 1;
-    }
-
-    for (let i = index; i < engine.maxEnemies; i += 1) {
-      dummy.position.set(0, -1000, 0);
-      dummy.rotation.set(0, 0, 0);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-    }
-
-    mesh.count = engine.maxEnemies;
-    mesh.instanceMatrix.needsUpdate = true;
-  });
-
-  const enemyType = engine.enemyTypes[typeIndex];
-
-  return (
-    <instancedMesh ref={meshRef} args={[null, null, engine.maxEnemies]} castShadow frustumCulled={false}>
-      <boxGeometry args={[enemyType.size, enemyType.size, enemyType.size]} />
-      <meshStandardMaterial color={enemyType.color} roughness={0.55} metalness={0.1} />
-    </instancedMesh>
-  );
-}
-
-function EnemyInstances({ engine }) {
-  return engine.enemyTypes.map((enemyType, typeIndex) => (
-    <EnemyTypeInstances key={enemyType.id} engine={engine} typeIndex={typeIndex} />
-  ));
-}
 
 function WallInstances({ engine, structureVersion }) {
   const meshRef = useRef();
@@ -397,7 +354,7 @@ export default function TowerDefenseSandbox1() {
         <WallInstances engine={engine} structureVersion={structureVersion} />
         <TurretInstances engine={engine} structureVersion={structureVersion} />
         <ProjectileInstances engine={engine} />
-        <EnemyInstances engine={engine} />
+        <EnemyInstances2 engine={engine} />
       </Physics>
     </>
   );
