@@ -1,4 +1,4 @@
-import{r as a,C as A,u as f,K as F,V as z,T as B,S as K,c as O,j as e,R as N,D as C}from"./index-L7arz_KC.js";import{P as V,K as W,R as h,E as Y,C as H,u}from"./Ecctrl-Be-RfPZ8.js";import{C as X}from"./CharacterModel-l-H5_Pdz.js";import{v as $}from"./constants-COIfDorI.js";import{T as q}from"./Text-BUE2k45G.js";import"./useAnimations-K4hrh97R.js";import"./SpriteAnimator-Db21FN3-.js";import"./troika-three-text.esm-CM7an1RO.js";class J extends K{constructor(){super({uniforms:{time:{value:0},fade:{value:1}},vertexShader:`
+import{r as a,C as A,u as f,K as F,V as z,T as B,S as K,c as O,j as e,R as N,D as C}from"./index-Cq7k-VTT.js";import{P as V,K as W,R as h,E as Y,C as H,u}from"./Ecctrl-CMm1OuqC.js";import{C as X}from"./CharacterModel-COZEloZA.js";import{v as $}from"./constants-BE1awky5.js";import{T as q}from"./Text-bKyA5lb3.js";import"./useAnimations-C0POGJul.js";import"./SpriteAnimator-PcNwqmYm.js";import"./troika-three-text.esm-DND_3kgh.js";class J extends K{constructor(){super({uniforms:{time:{value:0},fade:{value:1}},vertexShader:`
       uniform float time;
       attribute float size;
       varying vec3 vColor;
