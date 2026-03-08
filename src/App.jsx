@@ -44,7 +44,7 @@ function App() {
       {currentSceneId === "rpg" && <RpgHud />}
       {currentSceneId === "modelingSandbox1" && <RpgHud position="top-right" />}
       {(currentSceneId === "rpg" || currentSceneId === "modelingSandbox1") && <LevelUpMessageQueue />}
-      {currentSceneId === "towerDefenseSandbox1" && <TowerDefenseHud />}
+      {(currentSceneId === "towerDefenseSandbox1" || currentSceneId === "darkTower") && <TowerDefenseHud />}
     </>
   );
 }
