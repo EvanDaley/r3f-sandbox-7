@@ -8,6 +8,7 @@ import LevelUpMessageQueue from "./modules/rpg/components/LevelUpMessageQueue";
 import NetworkingGateway from "./modules/networking/components/NetworkingGateway";
 import CommsOverlay from "./modules/networking/components/CommsOverlay";
 import TowerDefenseHud from "./modules/tower_defense_sandbox_1/components/TowerDefenseHud";
+import SceneSelector from "./components/SceneSelector";
 
 const EcctrlJoystickControls = () => {
   const [isTouchScreen, setIsTouchScreen] = useState(false);
@@ -35,6 +36,7 @@ function App() {
   return (
     <>
       <Leva hidden />
+      <SceneSelector />
       <EcctrlJoystickControls />
       <ThreeCanvas />
       <NetworkingGateway />
