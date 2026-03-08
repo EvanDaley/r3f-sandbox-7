@@ -1,5 +1,5 @@
 import { KeyboardControls, Stars } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -152,16 +152,16 @@ function GroundPlane({ engine, structureVersion }) {
       }
     };
 
-    lightFromCell(0, 0, 4, 1);
+    lightFromCell(0, 0, 6, 1.25);
 
     engine.walls.forEach((key) => {
       const [x, z] = key.split(',').map(Number);
-      lightFromCell(x, z, 2, 0.45);
+      lightFromCell(x, z, 3, 0.75);
     });
 
     engine.turrets.forEach((key) => {
       const [x, z] = key.split(',').map(Number);
-      lightFromCell(x, z, 3, 0.8);
+      lightFromCell(x, z, 4, 1.1);
     });
   }, [engine, structureVersion]);
 
@@ -248,17 +248,19 @@ function GroundPlane({ engine, structureVersion }) {
 
           void main() {
             vec2 worldUv = ((vWorldPos.xz / uWorldSize) + 0.5);
-            float reveal = texture2D(uLightMap, worldUv).r;
+            float revealRaw = texture2D(uLightMap, worldUv).r;
+            float reveal = pow(clamp(revealRaw, 0.0, 1.0), 0.65);
 
             float dirt = fbm(vWorldPos.xz * 0.18 + vec2(0.0, uTime * 0.02));
             float stones = fbm(vWorldPos.xz * 0.55);
             float cracks = smoothstep(0.58, 0.82, fbm(vWorldPos.xz * 0.42 + 8.0));
 
             vec3 darkBase = vec3(0.02, 0.026, 0.035);
-            vec3 litBase = vec3(0.18, 0.17, 0.15);
+            vec3 litBase = vec3(0.48, 0.44, 0.36);
             vec3 color = mix(darkBase, litBase, reveal);
             color += vec3(dirt * 0.06 + stones * 0.03);
             color -= vec3(cracks * 0.08 * (1.0 - reveal * 0.6));
+            color += vec3(0.18, 0.14, 0.1) * reveal * 0.65;
 
             float edgeFade = smoothstep(0.0, 0.08, worldUv.x) * smoothstep(0.0, 0.08, worldUv.y)
               * smoothstep(0.0, 0.08, 1.0 - worldUv.x) * smoothstep(0.0, 0.08, 1.0 - worldUv.y);
@@ -297,20 +299,20 @@ function ExpansionLights({ engine, structureVersion, controllerRef }) {
         if (b.isBase) return 1;
         return a.distSq - b.distSq;
       })
-      .slice(0, 8);
+      .slice(0, 12);
   }, [dynamicKeys, engine, playerPosition.x, playerPosition.z]);
 
   return (
     <>
-      <ambientLight intensity={0.1} color='#0f172a' />
-      <hemisphereLight intensity={0.08} color='#1e293b' groundColor='#020617' />
-      <directionalLight castShadow position={[16, 28, 12]} intensity={0.35} color='#64748b' shadow-mapSize={[2048, 2048]} />
+      <ambientLight intensity={0.2} color='#0f172a' />
+      <hemisphereLight intensity={0.16} color='#1e293b' groundColor='#020617' />
+      <directionalLight castShadow position={[16, 28, 12]} intensity={0.55} color='#64748b' shadow-mapSize={[2048, 2048]} />
       {sortedKeys.map((entry) => (
         <pointLight
           key={entry.key}
           position={[entry.world.x, 1.25, entry.world.z]}
-          intensity={entry.isBase ? 1.7 : 1.0}
-          distance={entry.isBase ? 15 : 10}
+          intensity={entry.isBase ? 2.6 : 1.65}
+          distance={entry.isBase ? 22 : 14}
           decay={2}
           color={entry.isBase ? '#fef3c7' : '#c4b5fd'}
           castShadow={entry.isBase}
@@ -337,6 +339,16 @@ export default function DarkTower() {
 
   const [structureVersion, setStructureVersion] = useState(0);
   const controllerRef = useRef();
+  const { gl } = useThree();
+
+
+  useEffect(() => {
+    gl.setClearColor('#000000', 1);
+
+    return () => {
+      gl.setClearColor('#000000', 1);
+    };
+  }, [gl]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -414,8 +426,8 @@ export default function DarkTower() {
   return (
     <>
       <color attach='background' args={['#000000']} />
-      <fog attach='fog' args={['#02040a', 20, 130]} />
-      <Stars radius={100} depth={60} count={1800} factor={4} fade speed={0.35} />
+      <fog attach='fog' args={['#050510', 15, 80]} />
+      <Stars radius={100} depth={50} count={2000} factor={4} fade speed={0.5} />
       <ExpansionLights engine={engine} structureVersion={structureVersion} controllerRef={controllerRef} />
 
       <Physics timeStep='vary'>
