@@ -21,7 +21,7 @@ const scenes = [
   { id: "thirdPersonScene1", name: "Third Person Scene 1", scene: ThirdPersonScene1 },
 ];
 
-let defaultScene = "dark";
+let defaultScene = "thirdPersonBlenderIntegrated";
 
 const useSceneStore = create((set) => ({
   currentSceneId: defaultScene,
