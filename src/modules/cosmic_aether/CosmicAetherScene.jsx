@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useThree } from "@react-three/fiber";
 import CosmicAetherEnvironment from "./components/CosmicAetherEnvironment";
-import CosmicAetherHud from "./components/CosmicAetherHud";
 import { STAGE_BY_ID } from "./config/stageConfig";
 import ChoirRuinsStage from "./stages/ChoirRuinsStage";
 import PaleGardenStage from "./stages/PaleGardenStage";
@@ -42,7 +41,6 @@ export default function CosmicAetherScene() {
       <StageComponent />
       <PlayerController />
       <AetherSystem spawn={PLAYER_SPAWN} />
-      <CosmicAetherHud />
     </>
   );
 }

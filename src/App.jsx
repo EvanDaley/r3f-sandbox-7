@@ -9,6 +9,7 @@ import NetworkingGateway from "./modules/networking/components/NetworkingGateway
 import CommsOverlay from "./modules/networking/components/CommsOverlay";
 import TowerDefenseHud from "./modules/tower_defense_sandbox_1/components/TowerDefenseHud";
 import SceneSelector from "./components/SceneSelector";
+import CosmicAetherHud from "./modules/cosmic_aether/components/CosmicAetherHud";
 
 const EcctrlJoystickControls = () => {
   const [isTouchScreen, setIsTouchScreen] = useState(false);
@@ -45,6 +46,7 @@ function App() {
       {currentSceneId === "modelingSandbox1" && <RpgHud position="top-right" />}
       {(currentSceneId === "rpg" || currentSceneId === "modelingSandbox1") && <LevelUpMessageQueue />}
       {currentSceneId === "towerDefenseSandbox1" && <TowerDefenseHud />}
+      {currentSceneId === "cosmicAether" && <CosmicAetherHud />}
     </>
   );
 }
