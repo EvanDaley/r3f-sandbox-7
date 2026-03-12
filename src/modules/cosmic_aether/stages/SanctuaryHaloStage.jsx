@@ -16,6 +16,7 @@ export default function SanctuaryHaloStage() {
 
       <ResourceNode position={[-6, 1.2, -3]} resource={RESOURCE_TYPES.PALE_DUST} color="#fef6d8" amount={2} />
       <ResourceNode position={[5, 1.4, -5]} resource={RESOURCE_TYPES.PALE_DUST} color="#fff6df" amount={2} />
+      <ResourceNode position={[-4, 1.3, 6]} resource={RESOURCE_TYPES.PALE_DUST} color="#fff4d0" amount={2} />
       <ResourceNode position={[3, 1.6, 7]} resource={RESOURCE_TYPES.VEIL_FIBER} color="#dbf6f4" amount={1} />
 
       <UnlockShrine

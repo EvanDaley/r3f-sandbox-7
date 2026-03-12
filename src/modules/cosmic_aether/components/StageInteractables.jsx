@@ -8,23 +8,50 @@ export function ResourceNode({ position, resource, color = "#d6f7ff", amount = 1
   const gatherResource = useCosmicAetherStore((state) => state.gatherResource);
   const setMessage = useCosmicAetherStore((state) => state.setMessage);
   const [depleted, setDepleted] = useState(false);
+  const { camera } = useThree();
+  const [isNear, setIsNear] = useState(false);
+  const target = useMemo(() => new Vector3(...position), [position]);
+  const keyPressed = useRef(false);
 
-  const handleGather = () => {
-    if (depleted) return;
-    gatherResource(resource, amount);
-    setMessage(`Gathered ${amount} ${resource}.`);
-    setDepleted(true);
-    window.setTimeout(() => setDepleted(false), 8000);
-  };
+  useFrame(() => {
+    setIsNear(camera.position.distanceTo(target) < 8);
+  });
+
+  useEffect(() => {
+    const handleDown = (event) => {
+      if (event.code !== "KeyF" || keyPressed.current || !isNear || depleted) return;
+      keyPressed.current = true;
+      gatherResource(resource, amount);
+      setMessage(`Gathered ${amount} ${resource}.`);
+      setDepleted(true);
+      window.setTimeout(() => setDepleted(false), 8000);
+    };
+
+    const handleUp = (event) => {
+      if (event.code === "KeyF") keyPressed.current = false;
+    };
+
+    window.addEventListener("keydown", handleDown);
+    window.addEventListener("keyup", handleUp);
+    return () => {
+      window.removeEventListener("keydown", handleDown);
+      window.removeEventListener("keyup", handleUp);
+    };
+  }, [isNear, depleted, gatherResource, resource, amount, setMessage]);
 
   return (
-    <group position={position} onClick={handleGather}>
+    <group position={position}>
       <Float speed={1} rotationIntensity={0.6}>
         <mesh castShadow>
-          <icosahedronGeometry args={[depleted ? 0.2 : 0.75, 1]} />
-          <meshStandardMaterial color={depleted ? "#d8d8d8" : color} emissive={depleted ? "#000000" : color} emissiveIntensity={0.3} />
+          <icosahedronGeometry args={[depleted ? 1.0 : 3.0, 1]} />
+          <meshStandardMaterial color={depleted ? "#d8d8d8" : color} emissive={depleted ? "#000000" : color} emissiveIntensity={depleted ? 0 : 0.5} />
         </mesh>
       </Float>
+      {isNear && !depleted && (
+        <Html position={[0, 4, 0]} center>
+          <div style={promptStyle}>Press F — Gather {resource}</div>
+        </Html>
+      )}
     </group>
   );
 }

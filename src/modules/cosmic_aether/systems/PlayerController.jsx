@@ -14,7 +14,7 @@ const KEY_MAP = {
 };
 
 export default function PlayerController({ speed = 9, floatDrag = 0.9, bounds = 65 }) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const velocity = useRef(new Vector3());
   const pressed = useRef({});
 
@@ -27,6 +27,26 @@ export default function PlayerController({ speed = 9, floatDrag = 0.9, bounds = 
     }),
     []
   );
+
+  useEffect(() => {
+    // Handle pointer lock errors gracefully
+    const handlePointerLockError = () => {
+      // Silently handle pointer lock errors to prevent console spam
+      // This happens when the element is removed from DOM during scene switches
+    };
+
+    document.addEventListener("pointerlockerror", handlePointerLockError);
+
+    return () => {
+      document.removeEventListener("pointerlockerror", handlePointerLockError);
+      // Exit pointer lock on unmount if active
+      if (document.pointerLockElement === gl.domElement) {
+        document.exitPointerLock().catch(() => {
+          // Ignore errors when exiting
+        });
+      }
+    };
+  }, [gl.domElement]);
 
   useEffect(() => {
     const onKey = (value) => (event) => {

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import useCosmicAetherStore from "../stores/cosmicAetherStore";
 import { RESOURCE_TYPES } from "../config/stageConfig";
 
@@ -13,16 +14,18 @@ export default function CosmicAetherHud() {
   const integrity = useCosmicAetherStore((state) => state.integrity);
   const message = useCosmicAetherStore((state) => state.message);
   const inventory = useCosmicAetherStore((state) => state.inventory);
-  const recipes = useCosmicAetherStore((state) => state.getRecipes());
   const craftRecipe = useCosmicAetherStore((state) => state.craftRecipe);
-  const stages = useCosmicAetherStore((state) => state.getStageList());
   const canAccessStage = useCosmicAetherStore((state) => state.canAccessStage);
   const setStage = useCosmicAetherStore((state) => state.setStage);
   const currentStageId = useCosmicAetherStore((state) => state.currentStageId);
   const objectiveIndex = useCosmicAetherStore((state) => state.objectiveIndex);
-  const objectives = useCosmicAetherStore((state) => state.getObjectives());
   const tab = useCosmicAetherStore((state) => state.menuTab);
   const setMenuTab = useCosmicAetherStore((state) => state.setMenuTab);
+
+  // Memoize function results to prevent infinite loops
+  const recipes = useMemo(() => useCosmicAetherStore.getState().getRecipes(), []);
+  const stages = useMemo(() => useCosmicAetherStore.getState().getStageList(), []);
+  const objectives = useMemo(() => useCosmicAetherStore.getState().getObjectives(), []);
 
   return (
     <div style={overlayStyle}>
