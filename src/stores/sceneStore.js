@@ -9,6 +9,7 @@ const DarkScene = lazy(() => import("../modules/dark_scene/DarkScene"));
 const ModelingSandbox1 = lazy(() => import("../modules/modeling_sandbox_1/ModelingSandbox1"));
 const TowerDefenseSandbox1 = lazy(() => import("../modules/tower_defense_sandbox_1/TowerDefenseSandbox1"));
 const CosmicAetherScene = lazy(() => import("../modules/cosmic_aether/CosmicAetherScene"));
+const CsgHouseScene = lazy(() => import("../modules/csg_sandbox/CsgHouseScene"));
 
 const scenes = [
   { id: "towerDefenseSandbox1", name: "Tower Defense Sandbox 1", scene: TowerDefenseSandbox1 },
@@ -19,9 +20,10 @@ const scenes = [
   { id: "thirdPersonBlenderIntegrated", name: "Third Person Blender Integrated", scene: ThirdPersonBlenderIntegrated },
   { id: "thirdPersonScene1", name: "Third Person Scene 1", scene: ThirdPersonScene1 },
   { id: "cosmicAether", name: "Cosmic Aether", scene: CosmicAetherScene },
+  { id: "csgSandbox", name: "CSG House Sandbox", scene: CsgHouseScene },
 ];
 
-let defaultScene = "thirdPersonBlenderIntegrated";
+let defaultScene = "csgSandbox";
 
 const useSceneStore = create((set) => ({
   currentSceneId: defaultScene,
