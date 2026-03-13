@@ -5,10 +5,13 @@ import { Bvh } from "@react-three/drei";
 import useSceneStore from "../stores/sceneStore";
 
 export default function ThreeCanvas() {
+  const currentSceneId = useSceneStore((state) => state.currentSceneId);
   const SceneComponent = useSceneStore(
     (state) => state.scenes.find((s) => s.id === state.currentSceneId)?.scene
   );
 
+  // Scenes that don't work with BVH (e.g., CSG scenes)
+  const scenesWithoutBvh = ["csgSandbox"];
 
   useEffect(() => {
     const onMouseUp = (event) => {
@@ -20,6 +23,8 @@ export default function ThreeCanvas() {
     window.addEventListener("mouseup", onMouseUp);
     return () => window.removeEventListener("mouseup", onMouseUp);
   }, []);
+
+  const shouldUseBvh = !scenesWithoutBvh.includes(currentSceneId);
 
   return (
     <>
@@ -50,7 +55,11 @@ export default function ThreeCanvas() {
           }}
         >
           <Suspense fallback={null}>
-            <Bvh firstHitOnly>{React.createElement(SceneComponent)}</Bvh>
+            {shouldUseBvh ? (
+              <Bvh firstHitOnly>{React.createElement(SceneComponent)}</Bvh>
+            ) : (
+              React.createElement(SceneComponent)
+            )}
           </Suspense>
         </Canvas>
       )}
