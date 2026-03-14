@@ -10,32 +10,28 @@ export default function ThreeCanvas() {
     (state) => state.scenes.find((s) => s.id === state.currentSceneId)?.scene
   );
 
-  // Scenes that don't work with BVH (e.g., CSG scenes)
-  const scenesWithoutBvh = ["csgSandbox"];
+  // useEffect(() => {
+  //   const onMouseUp = (event) => {
+  //     if (event.button === 1 && document.pointerLockElement) {
+  //       document.exitPointerLock();
+  //     }
+  //   };
 
-  useEffect(() => {
-    const onMouseUp = (event) => {
-      if (event.button === 1 && document.pointerLockElement) {
-        document.exitPointerLock();
-      }
-    };
+  //   window.addEventListener("mouseup", onMouseUp);
+  //   return () => window.removeEventListener("mouseup", onMouseUp);
+  // }, []);
 
-    window.addEventListener("mouseup", onMouseUp);
-    return () => window.removeEventListener("mouseup", onMouseUp);
-  }, []);
-
-  const shouldUseBvh = !scenesWithoutBvh.includes(currentSceneId);
+  // Special camera settings for propWorkspace to match original example
+  // const cameraProps = currentSceneId === "propWorkspace" 
+  //   ? { position: [-40, 40, 40], fov: 25, near: 1, far: 100 }
+  //   : { fov: 65, near: 0.1, far: 1000 };
 
   return (
     <>
       {SceneComponent && (
         <Canvas
           shadows
-          camera={{
-            fov: 65,
-            near: 0.1,
-            far: 1000,
-          }}
+          // camera={cameraProps}
           onPointerDown={(e) => {
             if (e.pointerType === "mouse" && e.button === 1) {
               const canvas = e.target;
@@ -55,11 +51,7 @@ export default function ThreeCanvas() {
           }}
         >
           <Suspense fallback={null}>
-            {shouldUseBvh ? (
-              <Bvh firstHitOnly>{React.createElement(SceneComponent)}</Bvh>
-            ) : (
-              React.createElement(SceneComponent)
-            )}
+            <Bvh firstHitOnly>{React.createElement(SceneComponent)}</Bvh>
           </Suspense>
         </Canvas>
       )}

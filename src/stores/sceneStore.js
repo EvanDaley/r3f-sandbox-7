@@ -12,6 +12,13 @@ const TowerDefenseSandbox1 = lazy(() => import("../modules/tower_defense_sandbox
 const GreatExpanse = lazy(() => import("../modules/great_expanse/GreatExpanse"));
 const CosmicAetherScene = lazy(() => import("../modules/cosmic_aether/CosmicAetherScene"));
 const CsgHouseScene = lazy(() => import("../modules/csg_sandbox/CsgHouseScene"));
+const EmptyScene = lazy(() => import("../modules/empty_scene/EmptyScene"));
+const Objects1Scene = lazy(() =>
+  import("../modules/objects_1").catch((err) => {
+    console.error("1_objects scene load failed:", err);
+    throw err;
+  })
+);
 
 const scenes = [
   { id: "towerDefenseSandbox1", name: "Tower Defense Sandbox 1", scene: TowerDefenseSandbox1 },
@@ -25,9 +32,11 @@ const scenes = [
   { id: "greatExpanse", name: "Great Expanse", scene: GreatExpanse },
   { id: "cosmicAether", name: "Cosmic Aether", scene: CosmicAetherScene },
   { id: "csgSandbox", name: "CSG House Sandbox", scene: CsgHouseScene },
+  { id: "emptyScene", name: "Empty Scene", scene: EmptyScene },
+  { id: "1_objects", name: "Objects 1", scene: Objects1Scene },
 ];
 
-let defaultScene = "csgSandbox";
+let defaultScene = "1_objects";
 
 const useSceneStore = create((set) => ({
   currentSceneId: defaultScene,
