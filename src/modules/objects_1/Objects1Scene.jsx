@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useThree } from "@react-three/fiber";
-import { Grid, Environment } from "@react-three/drei";
+import { Grid, Environment, OrbitControls } from "@react-three/drei";
+import * as THREE from "three";
 import { Physics, usePlane } from "@react-three/cannon";
 import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing";
 import { Cursor } from "./helpers/Drag.jsx";
@@ -12,10 +13,10 @@ import { Chair, Table, Mug, Lamp } from "./components/Furniture";
 const FLOOR_Y = -5;
 
 const GRAB_TARGETS = [
-  [4, 1, 0],
-  [-4, 1, 0],
-  [0, 1, 4],
-  [0, 1, -4],
+  [4.5, 4.4, 0],
+  [-4.5, 3.6, 0],
+  [0, 4.2, 4.5],
+  [0, 3.8, -4.5],
 ];
 
 const STICK_THRESHOLD = 3;
@@ -74,8 +75,14 @@ export default function Objects1Scene() {
 
   return (
     <>
-      {/* <ClearFog /> */}
-      {/* <Environment background preset="sunset" blur={1} /> */}
+      <OrbitControls
+        makeDefault
+        enableDamping
+        dampingFactor={0.05}
+        minDistance={8}
+        maxDistance={85}
+        mouseButtons={{ LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE }}
+      />
       <ambientLight intensity={0.5} />
       <directionalLight
         position={[15, 20, 10]}
@@ -116,8 +123,8 @@ export default function Objects1Scene() {
         cellThickness={0.6}
         sectionSize={3.3}
         sectionThickness={1.5}
-        sectionColor={[0.5, 0.5, 10]}
-        // fadeDistance={30}
+        sectionColor={[0.2, 0.2, 0.2]}
+        fadeDistance={300}
       />
       <EffectComposer disableNormalPass>
         {/* <Bloom luminanceThreshold={2} mipmapBlur /> */}

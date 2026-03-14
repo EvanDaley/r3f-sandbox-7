@@ -24,7 +24,7 @@ export default function ThreeCanvas() {
   // Match ragdoll-physics-forked App.js for Objects 1 scene: no Bvh, no pointer handlers
   const isObjects1 = currentSceneId === "1_objects";
   const cameraProps = isObjects1
-    ? { position: [-40, 40, 40], fov: 25, near: 1, far: 100 }
+    ? { position: [-40, 40, 40], fov: 25, near: 1, far: 10000 }
     : undefined;
   const dpr = isObjects1 ? [1, 2] : undefined;
   const flat = isObjects1;

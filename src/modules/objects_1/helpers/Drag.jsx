@@ -14,16 +14,21 @@ const CURSOR_DEPTH_SCROLL_SENSITIVITY = 1
 /** True while user is dragging a body part (pointer down on a draggable). */
 let isDragging = false
 
+/** True while any pointer button is held down (orbit, drag, etc.). */
+let isPointerDown = false
+
 function useDragConstraint(child) {
   const [, , api] = usePointToPointConstraint(cursor, child, { pivotA: [0, 0, 0], pivotB: [0, 0, 0] })
   useEffect(() => void api.disable(), [])
   const onPointerUp = useCallback((e) => {
+    if (e.button !== 0) return
     isDragging = false
     document.body.style.cursor = 'grab'
     e.target.releasePointerCapture(e.pointerId)
     api.disable()
   }, [])
   const onPointerDown = useCallback((e) => {
+    if (e.button !== 0) return
     isDragging = true
     document.body.style.cursor = 'grabbing'
     e.stopPropagation()
@@ -43,19 +48,30 @@ function Cursor() {
       e.preventDefault()
       cursorDepth = Math.min(CURSOR_DEPTH_MAX, Math.max(CURSOR_DEPTH_MIN, cursorDepth - e.deltaY * 0.01 * CURSOR_DEPTH_SCROLL_SENSITIVITY))
     }
+    const onPointerDown = () => { isPointerDown = true }
+    const onPointerUp = () => { isPointerDown = false }
     window.addEventListener('wheel', onWheel, { passive: false })
-    return () => window.removeEventListener('wheel', onWheel)
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
+    }
   }, [])
 
   useFrame((state) => {
     raycaster.setFromCamera(state.pointer, state.camera)
 
-    if (!isDragging) {
+    if (!isDragging && !isPointerDown) {
       const hits = raycaster.intersectObjects(state.scene.children, true)
+      const cursorRoot = cursor.current
       const hit = hits.find((h) => {
         let o = h.object
         while (o) {
-          if (o.userData?.isDragCursor) return false
+          if (o === cursorRoot) return false
           o = o.parent
         }
         return true
@@ -65,9 +81,6 @@ function Cursor() {
 
     temp.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, cursorDepth)
     api.position.set(temp.x, temp.y, temp.z)
-
-    const mesh = cursor.current?.children[0]
-    if (mesh) mesh.visible = isDragging
   })
 
   return (
