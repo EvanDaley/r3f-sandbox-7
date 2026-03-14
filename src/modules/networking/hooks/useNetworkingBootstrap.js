@@ -5,7 +5,7 @@ import { initLocalhostPeer } from "../initializers/initLocalhostPeer";
 import { useNetworkingStore } from "../stores/useNetworkingStore";
 
 const log = (...args) => {
-  console.log("[network/bootstrap]", ...args);
+  // console.log("[network/bootstrap]", ...args);
 };
 
 const isLocalhostEnvironment = () => {

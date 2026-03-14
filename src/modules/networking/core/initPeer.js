@@ -6,7 +6,7 @@ let peerInitPromise = null;
 const PEERJS_CDN_URL = "https://esm.sh/peerjs@1.5.4";
 
 const log = (...args) => {
-  console.log("[network/initPeer]", ...args);
+  // console.log("[network/initPeer]", ...args);
 };
 
 async function loadPeerConstructor() {

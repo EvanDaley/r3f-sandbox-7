@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 const log = (...args) => {
-  console.log("[network/store]", ...args);
+  // console.log("[network/store]", ...args);
 };
 
 export const NETWORK_ROLE = {

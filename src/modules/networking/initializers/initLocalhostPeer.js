@@ -3,7 +3,7 @@ import { initPeer } from "../core/initPeer";
 import { NETWORK_ROLE } from "../stores/useNetworkingStore";
 
 const log = (...args) => {
-  console.log("[network/localhost]", ...args);
+  // console.log("[network/localhost]", ...args);
 };
 
 const getRoleForPort = (port) => {

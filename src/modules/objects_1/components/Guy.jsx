@@ -46,19 +46,19 @@ function Face() {
 export function Guy(props) {
   return (
     <BodyPart name="upperBody" {...props}>
-      <BodyPart {...props} name="head" config={joints.neckJoint} render={<Face />} />
-      <BodyPart {...props} name="upperLeftArm" config={joints.leftShoulder}>
-        <BodyPart {...props} name="lowerLeftArm" config={joints.leftElbowJoint} />
+      <BodyPart {...props} name="head" config={joints['neckJoint']} render={<Face />} />
+      <BodyPart {...props} name="upperLeftArm" config={joints['leftShoulder']}>
+        <BodyPart {...props} name="lowerLeftArm" config={joints['leftElbowJoint']} />
       </BodyPart>
-      <BodyPart {...props} name="upperRightArm" config={joints.rightShoulder}>
-        <BodyPart {...props} name="lowerRightArm" config={joints.rightElbowJoint} />
+      <BodyPart {...props} name="upperRightArm" config={joints['rightShoulder']}>
+        <BodyPart {...props} name="lowerRightArm" config={joints['rightElbowJoint']} />
       </BodyPart>
-      <BodyPart {...props} name="pelvis" config={joints.spineJoint}>
-        <BodyPart {...props} name="upperLeftLeg" config={joints.leftHipJoint}>
-          <BodyPart {...props} name="lowerLeftLeg" config={joints.leftKneeJoint} />
+      <BodyPart {...props} name="pelvis" config={joints['spineJoint']}>
+        <BodyPart {...props} name="upperLeftLeg" config={joints['leftHipJoint']}>
+          <BodyPart {...props} name="lowerLeftLeg" config={joints['leftKneeJoint']} />
         </BodyPart>
-        <BodyPart {...props} name="upperRightLeg" config={joints.rightHipJoint}>
-          <BodyPart {...props} name="lowerRightLeg" config={joints.rightKneeJoint} />
+        <BodyPart {...props} name="upperRightLeg" config={joints['rightHipJoint']}>
+          <BodyPart {...props} name="lowerRightLeg" config={joints['rightKneeJoint']} />
         </BodyPart>
       </BodyPart>
     </BodyPart>

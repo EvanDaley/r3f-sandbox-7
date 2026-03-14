@@ -21,38 +21,51 @@ export default function ThreeCanvas() {
   //   return () => window.removeEventListener("mouseup", onMouseUp);
   // }, []);
 
-  // Special camera settings for propWorkspace to match original example
-  // const cameraProps = currentSceneId === "propWorkspace" 
-  //   ? { position: [-40, 40, 40], fov: 25, near: 1, far: 100 }
-  //   : { fov: 65, near: 0.1, far: 1000 };
+  // Match ragdoll-physics-forked App.js for Objects 1 scene: no Bvh, no pointer handlers
+  const isObjects1 = currentSceneId === "1_objects";
+  const cameraProps = isObjects1
+    ? { position: [-40, 40, 40], fov: 25, near: 1, far: 100 }
+    : undefined;
+  const dpr = isObjects1 ? [1, 2] : undefined;
+
+  const pointerHandlers = isObjects1
+    ? {}
+    : {
+        onPointerDown: (e) => {
+          if (e.pointerType === "mouse" && e.button === 1) {
+            const canvas = e.target;
+            if (document.pointerLockElement !== canvas) {
+              canvas.requestPointerLock();
+            }
+          }
+        },
+        onPointerUp: (e) => {
+          if (
+            e.pointerType === "mouse" &&
+            e.button === 1 &&
+            document.pointerLockElement === e.target
+          ) {
+            document.exitPointerLock();
+          }
+        },
+      };
 
   return (
     <>
       {SceneComponent && (
         <Canvas
           shadows
-          // camera={cameraProps}
-          onPointerDown={(e) => {
-            if (e.pointerType === "mouse" && e.button === 1) {
-              const canvas = e.target;
-              if (document.pointerLockElement !== canvas) {
-                canvas.requestPointerLock();
-              }
-            }
-          }}
-          onPointerUp={(e) => {
-            if (
-              e.pointerType === "mouse" &&
-              e.button === 1 &&
-              document.pointerLockElement === e.target
-            ) {
-              document.exitPointerLock();
-            }
-          }}
+          {...(cameraProps && { camera: cameraProps })}
+          {...(dpr && { dpr })}
+          {...pointerHandlers}
         >
-          <Suspense fallback={null}>
-            <Bvh firstHitOnly>{React.createElement(SceneComponent)}</Bvh>
-          </Suspense>
+          {isObjects1 ? (
+            <Suspense fallback={null}>{React.createElement(SceneComponent)}</Suspense>
+          ) : (
+            <Suspense fallback={null}>
+              <Bvh firstHitOnly>{React.createElement(SceneComponent)}</Bvh>
+            </Suspense>
+          )}
         </Canvas>
       )}
     </>
