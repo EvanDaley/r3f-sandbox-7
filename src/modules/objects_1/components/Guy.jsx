@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useBox, useConeTwistConstraint, useSphere, usePointToPointConstraint } from "@react-three/cannon";
 import { createRagdoll } from "../helpers/createRagdoll";
-import { useDragConstraint } from "../helpers/Drag";
+import { useDragConstraint } from "../helpers/Drag.jsx";
 import { getLimbReleaseCallback } from "../helpers/limbAttachmentBridge";
 import { Block } from "../helpers/Block";
 import { useFrame } from "@react-three/fiber";

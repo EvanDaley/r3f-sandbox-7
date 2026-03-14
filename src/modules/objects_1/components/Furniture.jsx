@@ -3,7 +3,7 @@ import { useState, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { SpotLight } from '@react-three/drei'
 import { useCompoundBody, useSphere, useCylinder, useDistanceConstraint, usePointToPointConstraint } from '@react-three/cannon'
-import { useDragConstraint } from '../helpers/Drag'
+import { useDragConstraint } from '../helpers/Drag.jsx'
 import { Block } from '../helpers/Block'
 
 export function Chair(props) {

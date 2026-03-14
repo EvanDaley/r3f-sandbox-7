@@ -3,7 +3,7 @@ import { useThree } from "@react-three/fiber";
 import { Grid, Environment } from "@react-three/drei";
 import { Physics, usePlane } from "@react-three/cannon";
 import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing";
-import { Cursor } from "./helpers/Drag";
+import { Cursor } from "./helpers/Drag.jsx";
 import { setLimbReleaseCallback } from "./helpers/limbAttachmentBridge";
 import { Guy, ATTACHABLE_LIMBS } from "./components/Guy";
 import { GrabTarget } from "./components/GrabTarget";
