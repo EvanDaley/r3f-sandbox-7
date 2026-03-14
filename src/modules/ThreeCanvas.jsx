@@ -27,6 +27,7 @@ export default function ThreeCanvas() {
     ? { position: [-40, 40, 40], fov: 25, near: 1, far: 100 }
     : undefined;
   const dpr = isObjects1 ? [1, 2] : undefined;
+  const flat = isObjects1;
 
   const pointerHandlers = isObjects1
     ? {}
@@ -55,6 +56,7 @@ export default function ThreeCanvas() {
       {SceneComponent && (
         <Canvas
           shadows
+          flat={flat}
           {...(cameraProps && { camera: cameraProps })}
           {...(dpr && { dpr })}
           {...pointerHandlers}

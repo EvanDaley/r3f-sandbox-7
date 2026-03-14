@@ -33,7 +33,7 @@ const scenes = [
   { id: "cosmicAether", name: "Cosmic Aether", scene: CosmicAetherScene },
   { id: "csgSandbox", name: "CSG House Sandbox", scene: CsgHouseScene },
   { id: "emptyScene", name: "Empty Scene", scene: EmptyScene },
-  { id: "1_objects", name: "Objects 1", scene: Objects1Scene },
+  { id: "1_objects", name: "Ragdoll Objects 1", scene: Objects1Scene },
 ];
 
 let defaultScene = "1_objects";

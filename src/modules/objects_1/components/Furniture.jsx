@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
 import { SpotLight } from '@react-three/drei'
 import { useCompoundBody, useSphere, useCylinder, useDistanceConstraint, usePointToPointConstraint } from '@react-three/cannon'
 import { useDragConstraint } from '../helpers/Drag'
@@ -74,16 +75,23 @@ export function Table(props) {
 
 export function Lamp(props) {
   const [target] = useState(() => new THREE.Object3D())
+  const spotlightRef = useRef()
   const [fixed] = useSphere(() => ({ collisionFilterGroup: 0, type: 'Static', args: [0.2], ...props }))
   const [lamp] = useCylinder(() => ({ mass: 1, args: [0.5, 1.5, 2, 16], angularDamping: 0.95, linearDamping: 0.95, material: { friction: 0.9 }, ...props }))
   const bind = useDragConstraint(lamp)
   useDistanceConstraint(fixed, lamp, { distance: 2, pivotA: [0, 0, 0], pivotB: [0, 2, 0] })
   usePointToPointConstraint(fixed, lamp, { pivotA: [0, 0, 0], pivotB: [0, 2, 0] })
+  useFrame((state) => {
+    if (spotlightRef.current) {
+      spotlightRef.current.intensity = 1.2 + Math.sin(state.clock.elapsedTime * 1.5) * 0.4
+    }
+  })
   return (
     <mesh ref={lamp} {...bind}>
       <cylinderGeometry args={[0.5, 1.5, 2, 32]} />
-      <meshStandardMaterial />
+      <meshStandardMaterial color="#fff5e6" emissive="#ffdd99" emissiveIntensity={0.08} />
       <SpotLight
+        ref={spotlightRef}
         castShadow
         target={target}
         penumbra={0.2}
@@ -93,8 +101,9 @@ export function Lamp(props) {
         angle={0.45}
         attenuation={20}
         anglePower={5}
-        intensity={1}
-        opacity={0.2}
+        intensity={1.2}
+        color="#fff5e0"
+        opacity={0.04}
       />
       <primitive object={target} position={[0, -1, 0]} />
     </mesh>
