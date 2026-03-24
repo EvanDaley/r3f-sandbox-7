@@ -1,34 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
-import { useThree } from "@react-three/fiber";
-import { Grid, Environment, OrbitControls } from "@react-three/drei";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Physics, usePlane } from "@react-three/cannon";
-import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing";
+import { EffectComposer, ToneMapping } from "@react-three/postprocessing";
 import { Cursor } from "./helpers/Drag.jsx";
 import { setLimbReleaseCallback } from "./helpers/limbAttachmentBridge";
 import { Guy, ATTACHABLE_LIMBS } from "./components/Guy";
-import { GrabTarget } from "./components/GrabTarget";
+import { GrabTargetPivot } from "./components/GrabTargetPivot";
 import { Chair, Table, Mug, Lamp } from "./components/Furniture";
 
 const FLOOR_Y = -5;
 
-const GRAB_TARGETS = [
-  [4.5, 4.4, 0],
-  [-4.5, 3.6, 0],
-  [0, 4.2, 4.5],
-  [0, 3.8, -4.5],
+const GRAB_TARGETS_INITIAL = [
+  [4.5, 8.8, 0],
+  [-4.5, 7.2, 0],
+  [0, 8.4, 4.5],
+  [0, 7.6, -4.5],
 ];
 
 const STICK_THRESHOLD = 3;
-
-function ClearFog() {
-  const scene = useThree((s) => s.scene);
-  useEffect(() => {
-    scene.fog = null;
-    return () => {};
-  }, [scene]);
-  return null;
-}
 
 function Floor(props) {
   const [ref] = usePlane(() => ({ type: "Static", ...props }));
@@ -44,39 +34,82 @@ function distance3(a, b) {
   return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
+function targetIsHeld(limbTargetIndex, targetIndex) {
+  return ATTACHABLE_LIMBS.some((limb) => limbTargetIndex[limb] === targetIndex);
+}
+
 export default function Objects1Scene() {
-  const [attachments, setAttachments] = useState(() => {
+  const [grabTargetPositions, setGrabTargetPositions] = useState(() =>
+    GRAB_TARGETS_INITIAL.map((p) => [...p])
+  );
+  /** Which grab pad each limb is stuck to (anchors follow grabTargetPositions[index]). */
+  const [limbTargetIndex, setLimbTargetIndex] = useState(() => {
     const o = {};
     ATTACHABLE_LIMBS.forEach((k) => (o[k] = null));
     return o;
   });
+  const [orbitEnabled, setOrbitEnabled] = useState(true);
+
+  const targetsRef = useRef(grabTargetPositions);
+  targetsRef.current = grabTargetPositions;
 
   const onLimbRelease = useCallback((limbName, worldPosition) => {
     if (!ATTACHABLE_LIMBS.includes(limbName)) return;
-    let best = null;
+    let bestIdx = null;
     let bestDist = STICK_THRESHOLD;
-    for (const pos of GRAB_TARGETS) {
+    targetsRef.current.forEach((pos, i) => {
       const d = distance3(worldPosition, pos);
       if (d < bestDist) {
         bestDist = d;
-        best = pos;
+        bestIdx = i;
       }
-    }
-    setAttachments((prev) => ({
+    });
+    setLimbTargetIndex((prev) => ({
       ...prev,
-      [limbName]: best ? [...best] : null,
+      [limbName]: bestIdx,
     }));
   }, []);
+
+  const handleTargetMove = useCallback((index, newPos) => {
+    setGrabTargetPositions((prev) => {
+      const next = [...prev];
+      next[index] = newPos;
+      return next;
+    });
+  }, []);
+
+  const attachments = useMemo(() => {
+    const o = {};
+    for (const limb of ATTACHABLE_LIMBS) {
+      const idx = limbTargetIndex[limb];
+      o[limb] = idx != null ? [...grabTargetPositions[idx]] : null;
+    }
+    return o;
+  }, [limbTargetIndex, grabTargetPositions]);
+
+  const pauseOrbit = useCallback(() => setOrbitEnabled(false), []);
+  const resumeOrbit = useCallback(() => setOrbitEnabled(true), []);
 
   useEffect(() => {
     setLimbReleaseCallback(onLimbRelease);
     return () => setLimbReleaseCallback(null);
   }, [onLimbRelease]);
 
+  useEffect(() => {
+    const onPointerUp = () => setOrbitEnabled(true);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, []);
+
   return (
     <>
       <OrbitControls
         makeDefault
+        enabled={orbitEnabled}
         enableDamping
         dampingFactor={0.05}
         minDistance={8}
@@ -106,8 +139,16 @@ export default function Objects1Scene() {
       <Physics allowSleep={false} iterations={15} gravity={[0, -200, 0]}>
         <Cursor />
         <Guy rotation={[-Math.PI / 3, 0, 0]} attachments={attachments} />
-        {GRAB_TARGETS.map((pos, i) => (
-          <GrabTarget key={i} position={pos} color={i % 2 === 0 ? "#4ade80" : "#22d3ee"} />
+        {grabTargetPositions.map((pos, i) => (
+          <GrabTargetPivot
+            key={i}
+            position={pos}
+            color={i % 2 === 0 ? "#4ade80" : "#22d3ee"}
+            held={targetIsHeld(limbTargetIndex, i)}
+            onMove={(newPos) => handleTargetMove(i, newPos)}
+            onGizmoDragStart={pauseOrbit}
+            onGizmoDragEnd={resumeOrbit}
+          />
         ))}
         <Floor position={[0, FLOOR_Y, 0]} rotation={[-Math.PI / 2, 0, 0]} />
         <Chair position={[0, 0, -2.52]} />
@@ -127,7 +168,6 @@ export default function Objects1Scene() {
         fadeDistance={300}
       />
       <EffectComposer disableNormalPass>
-        {/* <Bloom luminanceThreshold={2} mipmapBlur /> */}
         <ToneMapping />
       </EffectComposer>
     </>
