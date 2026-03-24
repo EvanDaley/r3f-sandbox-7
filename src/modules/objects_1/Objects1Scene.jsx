@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { useThree } from "@react-three/fiber";
-import { Grid, Environment, OrbitControls } from "@react-three/drei";
+import { Grid, Html, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Physics, usePlane } from "@react-three/cannon";
-import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing";
+import { EffectComposer, ToneMapping } from "@react-three/postprocessing";
 import { Cursor } from "./helpers/Drag.jsx";
 import { setLimbReleaseCallback } from "./helpers/limbAttachmentBridge";
 import { Guy, ATTACHABLE_LIMBS } from "./components/Guy";
@@ -21,15 +20,6 @@ const GRAB_TARGETS = [
 
 const STICK_THRESHOLD = 3;
 
-function ClearFog() {
-  const scene = useThree((s) => s.scene);
-  useEffect(() => {
-    scene.fog = null;
-    return () => {};
-  }, [scene]);
-  return null;
-}
-
 function Floor(props) {
   const [ref] = usePlane(() => ({ type: "Static", ...props }));
   return (
@@ -45,6 +35,10 @@ function distance3(a, b) {
 }
 
 export default function Objects1Scene() {
+  const [animationMode, setAnimationMode] = useState("ragdoll");
+  const [rifleMode, setRifleMode] = useState(false);
+  const [isFiring, setIsFiring] = useState(false);
+
   const [attachments, setAttachments] = useState(() => {
     const o = {};
     ATTACHABLE_LIMBS.forEach((k) => (o[k] = null));
@@ -73,8 +67,58 @@ export default function Objects1Scene() {
     return () => setLimbReleaseCallback(null);
   }, [onLimbRelease]);
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.repeat) return;
+      if (e.code === "KeyM") {
+        setAnimationMode((prev) => (prev === "walk" ? "ragdoll" : "walk"));
+      }
+      if (e.code === "KeyR") {
+        setRifleMode((prev) => !prev);
+      }
+      if (e.code === "Space") {
+        setIsFiring(true);
+      }
+    };
+    const onKeyUp = (e) => {
+      if (e.code === "Space") {
+        setIsFiring(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
   return (
     <>
+      <Html fullscreen style={{ pointerEvents: "none" }}>
+        <div style={{ ...hudStyle, pointerEvents: "auto" }}>
+          <div style={hudTitleStyle}>Ragdoll Animator</div>
+          <button
+            type="button"
+            style={hudButtonStyle}
+            onClick={() => setAnimationMode((prev) => (prev === "walk" ? "ragdoll" : "walk"))}
+          >
+            Mode: {animationMode === "walk" ? "Walking" : "Ragdoll"} (M)
+          </button>
+          <button type="button" style={hudButtonStyle} onClick={() => setRifleMode((prev) => !prev)}>
+            Rifle: {rifleMode ? "Ready" : "Holstered"} (R)
+          </button>
+          <button
+            type="button"
+            style={{ ...hudButtonStyle, background: isFiring ? "#7f1d1d" : "rgba(35,35,35,0.95)" }}
+            onMouseDown={() => setIsFiring(true)}
+            onMouseUp={() => setIsFiring(false)}
+            onMouseLeave={() => setIsFiring(false)}
+          >
+            Fire: {isFiring ? "BANG" : "Idle"} (Hold Space)
+          </button>
+        </div>
+      </Html>
       <OrbitControls
         makeDefault
         enableDamping
@@ -105,7 +149,13 @@ export default function Objects1Scene() {
       <pointLight position={[-10, 8, -10]} intensity={0.8} />
       <Physics allowSleep={false} iterations={15} gravity={[0, -200, 0]}>
         <Cursor />
-        <Guy rotation={[-Math.PI / 3, 0, 0]} attachments={attachments} />
+        <Guy
+          rotation={[-Math.PI / 3, 0, 0]}
+          attachments={attachments}
+          animationMode={animationMode}
+          rifleActive={rifleMode}
+          isFiring={isFiring && rifleMode}
+        />
         {GRAB_TARGETS.map((pos, i) => (
           <GrabTarget key={i} position={pos} color={i % 2 === 0 ? "#4ade80" : "#22d3ee"} />
         ))}
@@ -133,3 +183,36 @@ export default function Objects1Scene() {
     </>
   );
 }
+
+const hudStyle = {
+  position: "absolute",
+  top: 72,
+  right: 12,
+  zIndex: 150,
+  background: "rgba(0,0,0,0.65)",
+  color: "white",
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: 10,
+  padding: 10,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  minWidth: 230,
+  backdropFilter: "blur(4px)",
+};
+
+const hudTitleStyle = {
+  fontSize: 13,
+  fontWeight: 700,
+  letterSpacing: 0.3,
+};
+
+const hudButtonStyle = {
+  border: "1px solid rgba(255,255,255,0.25)",
+  background: "rgba(35,35,35,0.95)",
+  color: "white",
+  borderRadius: 8,
+  padding: "7px 10px",
+  textAlign: "left",
+  cursor: "pointer",
+};

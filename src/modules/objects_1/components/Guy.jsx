@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useBox, useConeTwistConstraint, useSphere, usePointToPointConstraint } from "@react-three/cannon";
 import { createRagdoll } from "../helpers/createRagdoll";
@@ -106,7 +106,13 @@ function Face() {
 }
 
 export function Guy(props) {
-  const { attachments = {}, ...rest } = props;
+  const {
+    attachments = {},
+    animationMode = "ragdoll",
+    rifleActive = false,
+    isFiring = false,
+    ...rest
+  } = props;
 
   const [anchor1Ref, anchor1Api] = useSphere(() => ({
     type: "Kinematic",
@@ -146,14 +152,85 @@ export function Guy(props) {
   const anchorApis = [anchor1Api, anchor2Api, anchor3Api, anchor4Api];
   const limbKeys = ATTACHABLE_LIMBS;
 
+  const proceduralTargetsRef = useRef({
+    lowerLeftArm: null,
+    lowerRightArm: null,
+    lowerLeftLeg: null,
+    lowerRightLeg: null,
+  });
+
+  const effectiveAttachments = useMemo(() => {
+    const output = {};
+    ATTACHABLE_LIMBS.forEach((key) => {
+      output[key] = attachments[key] ?? proceduralTargetsRef.current[key] ?? null;
+    });
+    return output;
+  }, [
+    attachments.lowerLeftArm,
+    attachments.lowerRightArm,
+    attachments.lowerLeftLeg,
+    attachments.lowerRightLeg,
+    animationMode,
+    rifleActive,
+    isFiring,
+  ]);
+
   useEffect(() => {
     limbKeys.forEach((key, i) => {
-      const pos = attachments[key];
+      const pos = effectiveAttachments[key];
       if (pos && Array.isArray(pos) && pos.length >= 3) {
         anchorApis[i].position.set(pos[0], pos[1], pos[2]);
       }
     });
-  }, [attachments.lowerLeftArm, attachments.lowerRightArm, attachments.lowerLeftLeg, attachments.lowerRightLeg]);
+  }, [
+    effectiveAttachments.lowerLeftArm,
+    effectiveAttachments.lowerRightArm,
+    effectiveAttachments.lowerLeftLeg,
+    effectiveAttachments.lowerRightLeg,
+  ]);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    const gait = Math.sin(t * 4.4);
+    const antiGait = Math.sin(t * 4.4 + Math.PI);
+    const bounce = Math.abs(Math.sin(t * 8.8));
+    const firePulse = isFiring ? Math.sin(t * 50) * 0.18 : 0;
+    const baseHeight = 2.95;
+
+    const walkEnabled = animationMode === "walk";
+    const aimEnabled = rifleActive;
+
+    const walkTargets = {
+      lowerLeftLeg: [-0.9, baseHeight + bounce * 0.2, 0.5 + gait * 1.1],
+      lowerRightLeg: [0.9, baseHeight + (1 - bounce) * 0.2, 0.5 + antiGait * 1.1],
+      lowerLeftArm: [-2.6, 7.4 + antiGait * 0.2, -0.3 + antiGait * 0.9],
+      lowerRightArm: [2.6, 7.4 + gait * 0.2, -0.3 + gait * 0.9],
+    };
+
+    const rifleTargets = {
+      lowerLeftArm: [-0.7, 7.2, 2.2 + firePulse * -0.6],
+      lowerRightArm: [1.15, 7.35, 1.5 + firePulse * -0.35],
+      lowerLeftLeg: [-0.75, 2.95 + bounce * 0.1, 0.25 + gait * 0.25],
+      lowerRightLeg: [0.75, 2.95 + (1 - bounce) * 0.1, 0.15 + antiGait * 0.25],
+    };
+
+    if (walkEnabled || aimEnabled) {
+      const targets = aimEnabled ? rifleTargets : walkTargets;
+      ATTACHABLE_LIMBS.forEach((key, i) => {
+        if (!attachments[key]) {
+          const next = targets[key];
+          proceduralTargetsRef.current[key] = next;
+          anchorApis[i].position.set(next[0], next[1], next[2]);
+        }
+      });
+    } else {
+      ATTACHABLE_LIMBS.forEach((key) => {
+        proceduralTargetsRef.current[key] = null;
+      });
+    }
+  });
+
+  const muzzleFlashScale = isFiring ? 0.35 : 0.001;
 
   return (
     <>
@@ -161,6 +238,19 @@ export function Guy(props) {
       <group ref={anchor2Ref} />
       <group ref={anchor3Ref} />
       <group ref={anchor4Ref} />
+      {rifleActive && (
+        <group position={[0.3, 7.25, 1.95]} rotation={[0, -0.06, 0.12]}>
+          <Block args={[2.5, 0.18, 0.18]} color="#2a2a2a" />
+          <Block position={[0.95, 0.1, 0]} args={[0.65, 0.24, 0.22]} color="#3b3b3b" />
+          <Block position={[-1, -0.18, 0]} args={[0.26, 0.36, 0.2]} color="#1f1f1f" />
+          <Block position={[1.35, 0, 0]} args={[0.24, 0.14, 0.14]} color="#1a1a1a" />
+          <pointLight position={[1.55, 0, 0]} color="#ffb347" intensity={isFiring ? 5 : 0} distance={3} decay={2} />
+          <mesh position={[1.62, 0, 0]} scale={[muzzleFlashScale, muzzleFlashScale, muzzleFlashScale]}>
+            <sphereGeometry args={[1, 8, 8]} />
+            <meshBasicMaterial color="#ffe29a" transparent opacity={0.85} />
+          </mesh>
+        </group>
+      )}
       <BodyPart name="upperBody" {...rest}>
         <BodyPart {...rest} name="head" config={joints["neckJoint"]} render={<Face />} />
         <BodyPart {...rest} name="upperLeftArm" config={joints["leftShoulder"]}>
@@ -169,7 +259,7 @@ export function Guy(props) {
             name="lowerLeftArm"
             config={joints["leftElbowJoint"]}
             anchorRef={anchorRefs.lowerLeftArm}
-            attachmentPosition={attachments.lowerLeftArm}
+            attachmentPosition={effectiveAttachments.lowerLeftArm}
           />
         </BodyPart>
         <BodyPart {...rest} name="upperRightArm" config={joints["rightShoulder"]}>
@@ -178,7 +268,7 @@ export function Guy(props) {
             name="lowerRightArm"
             config={joints["rightElbowJoint"]}
             anchorRef={anchorRefs.lowerRightArm}
-            attachmentPosition={attachments.lowerRightArm}
+            attachmentPosition={effectiveAttachments.lowerRightArm}
           />
         </BodyPart>
         <BodyPart {...rest} name="pelvis" config={joints["spineJoint"]}>
@@ -188,7 +278,7 @@ export function Guy(props) {
               name="lowerLeftLeg"
               config={joints["leftKneeJoint"]}
               anchorRef={anchorRefs.lowerLeftLeg}
-              attachmentPosition={attachments.lowerLeftLeg}
+              attachmentPosition={effectiveAttachments.lowerLeftLeg}
             />
           </BodyPart>
           <BodyPart {...rest} name="upperRightLeg" config={joints["rightHipJoint"]}>
@@ -197,7 +287,7 @@ export function Guy(props) {
               name="lowerRightLeg"
               config={joints["rightKneeJoint"]}
               anchorRef={anchorRefs.lowerRightLeg}
-              attachmentPosition={attachments.lowerRightLeg}
+              attachmentPosition={effectiveAttachments.lowerRightLeg}
             />
           </BodyPart>
         </BodyPart>
