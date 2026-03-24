@@ -6,7 +6,7 @@ import { Physics, usePlane } from "@react-three/cannon";
 import { EffectComposer, Bloom, ToneMapping } from "@react-three/postprocessing";
 import { Cursor } from "./helpers/Drag.jsx";
 import { setLimbReleaseCallback } from "./helpers/limbAttachmentBridge";
-import { Guy, ATTACHABLE_LIMBS } from "./components/Guy";
+import { Guy2, ATTACHABLE_LIMBS_GUY2 } from "./components/Guy2";
 import { GrabTarget } from "./components/GrabTarget";
 import { Chair, Table, Mug, Lamp } from "./components/Furniture";
 
@@ -47,12 +47,12 @@ function distance3(a, b) {
 export default function Objects1Scene() {
   const [attachments, setAttachments] = useState(() => {
     const o = {};
-    ATTACHABLE_LIMBS.forEach((k) => (o[k] = null));
+    ATTACHABLE_LIMBS_GUY2.forEach((k) => (o[k] = null));
     return o;
   });
 
   const onLimbRelease = useCallback((limbName, worldPosition) => {
-    if (!ATTACHABLE_LIMBS.includes(limbName)) return;
+    if (!ATTACHABLE_LIMBS_GUY2.includes(limbName)) return;
     let best = null;
     let bestDist = STICK_THRESHOLD;
     for (const pos of GRAB_TARGETS) {
@@ -105,7 +105,7 @@ export default function Objects1Scene() {
       <pointLight position={[-10, 8, -10]} intensity={0.8} />
       <Physics allowSleep={false} iterations={15} gravity={[0, -200, 0]}>
         <Cursor />
-        <Guy rotation={[-Math.PI / 3, 0, 0]} attachments={attachments} />
+        <Guy2 rotation={[-Math.PI / 3, 0, 0]} attachments={attachments} />
         {GRAB_TARGETS.map((pos, i) => (
           <GrabTarget key={i} position={pos} color={i % 2 === 0 ? "#4ade80" : "#22d3ee"} />
         ))}
