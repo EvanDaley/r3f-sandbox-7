@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Grid, OrbitControls } from "@react-three/drei";
+import { Grid, Html, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Physics, usePlane } from "@react-three/cannon";
 import { EffectComposer, ToneMapping } from "@react-three/postprocessing";
@@ -95,28 +95,30 @@ export default function Objects1Scene() {
 
   return (
     <>
-      <div style={hudStyle}>
-        <div style={hudTitleStyle}>Ragdoll Animator</div>
-        <button
-          type="button"
-          style={hudButtonStyle}
-          onClick={() => setAnimationMode((prev) => (prev === "walk" ? "ragdoll" : "walk"))}
-        >
-          Mode: {animationMode === "walk" ? "Walking" : "Ragdoll"} (M)
-        </button>
-        <button type="button" style={hudButtonStyle} onClick={() => setRifleMode((prev) => !prev)}>
-          Rifle: {rifleMode ? "Ready" : "Holstered"} (R)
-        </button>
-        <button
-          type="button"
-          style={{ ...hudButtonStyle, background: isFiring ? "#7f1d1d" : "rgba(35,35,35,0.95)" }}
-          onMouseDown={() => setIsFiring(true)}
-          onMouseUp={() => setIsFiring(false)}
-          onMouseLeave={() => setIsFiring(false)}
-        >
-          Fire: {isFiring ? "BANG" : "Idle"} (Hold Space)
-        </button>
-      </div>
+      <Html fullscreen style={{ pointerEvents: "none" }}>
+        <div style={{ ...hudStyle, pointerEvents: "auto" }}>
+          <div style={hudTitleStyle}>Ragdoll Animator</div>
+          <button
+            type="button"
+            style={hudButtonStyle}
+            onClick={() => setAnimationMode((prev) => (prev === "walk" ? "ragdoll" : "walk"))}
+          >
+            Mode: {animationMode === "walk" ? "Walking" : "Ragdoll"} (M)
+          </button>
+          <button type="button" style={hudButtonStyle} onClick={() => setRifleMode((prev) => !prev)}>
+            Rifle: {rifleMode ? "Ready" : "Holstered"} (R)
+          </button>
+          <button
+            type="button"
+            style={{ ...hudButtonStyle, background: isFiring ? "#7f1d1d" : "rgba(35,35,35,0.95)" }}
+            onMouseDown={() => setIsFiring(true)}
+            onMouseUp={() => setIsFiring(false)}
+            onMouseLeave={() => setIsFiring(false)}
+          >
+            Fire: {isFiring ? "BANG" : "Idle"} (Hold Space)
+          </button>
+        </div>
+      </Html>
       <OrbitControls
         makeDefault
         enableDamping
@@ -183,7 +185,7 @@ export default function Objects1Scene() {
 }
 
 const hudStyle = {
-  position: "fixed",
+  position: "absolute",
   top: 72,
   right: 12,
   zIndex: 150,
