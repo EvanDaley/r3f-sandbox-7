@@ -17,7 +17,8 @@ let isDragging = false
 /** True while any pointer button is held down (orbit, drag, etc.). */
 let isPointerDown = false
 
-function useDragConstraint(child) {
+function useDragConstraint(child, options = {}) {
+  const { onDragStart, onDragEnd } = options
   const [, , api] = usePointToPointConstraint(cursor, child, { pivotA: [0, 0, 0], pivotB: [0, 0, 0] })
   useEffect(() => void api.disable(), [])
   const onPointerUp = useCallback((e) => {
@@ -26,7 +27,8 @@ function useDragConstraint(child) {
     document.body.style.cursor = 'grab'
     e.target.releasePointerCapture(e.pointerId)
     api.disable()
-  }, [])
+    onDragEnd?.()
+  }, [api, onDragEnd])
   const onPointerDown = useCallback((e) => {
     if (e.button !== 0) return
     isDragging = true
@@ -34,7 +36,8 @@ function useDragConstraint(child) {
     e.stopPropagation()
     e.target.setPointerCapture(e.pointerId)
     api.enable()
-  }, [])
+    onDragStart?.()
+  }, [api, onDragStart])
   return { onPointerUp, onPointerDown }
 }
 
